@@ -1,17 +1,21 @@
-from pystac_client import Client
+import os
+from datetime import datetime, timedelta
+
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import numpy as np
+import odc.stac
 import planetary_computer as pc
 import rasterio
+import requests
+import tempfile
+import xarray as xr
+from geopy.geocoders import Nominatim
+from pystac_client import Client
 from rasterio.session import AWSSession
 from rasterio.windows import from_bounds
 from rasterio.warp import transform_bounds
-import tempfile
-import requests
-import xarray as xr
-import odc.stac
-import numpy as np
-import matplotlib.pyplot as plt
-from datetime import datetime, timedelta
-from geopy.geocoders import Nominatim
 
 catalog = Client.open(
     "https://planetarycomputer.microsoft.com/api/stac/v1",
@@ -19,7 +23,6 @@ catalog = Client.open(
 )
 
 geolocator = Nominatim(user_agent="city_bbox_lookup", timeout=10)
-
 
 def geocode_city(city):
     location = geolocator.geocode(city, exactly_one=True)
@@ -122,7 +125,7 @@ def get_heat_map(date, city):
 
     if len(items) == 0:
         print("No items found")
-        return
+        return None, None, None
 
     for item in items:
         thermal_dn, profile, asset = load_band(item, "lwir11", bbox, apply_scale=False)
@@ -140,16 +143,24 @@ def get_heat_map(date, city):
         fig, ax = plt.subplots(figsize=(10, 8))
         ax.imshow(thermal_c, cmap="inferno")
         ax.axis("off")
+
+        output_path = f"heat_map_{city}_{asset_date}.png"
         fig.savefig(
-            f"heat_map_{city}_{asset_date}.png",
+            output_path,
             bbox_inches="tight",
             pad_inches=0,
         )
         plt.close(fig)
 
-        return
+        with open(output_path, "rb") as file:
+            image_bytes = file.read()
+
+        os.remove(output_path)
+
+        return image_bytes, asset_date, bbox
 
     print("No valid thermal items without masked pixels were found.")
+    return None, None, None
 
 
 def get_ndvi_map(date, city):
@@ -158,7 +169,7 @@ def get_ndvi_map(date, city):
 
     if len(items) == 0:
         print("No items found")
-        return
+        return None, None, None
 
     for item in items:
         red, profile_red, red_asset = load_band(
@@ -188,16 +199,21 @@ def get_ndvi_map(date, city):
         fig, ax = plt.subplots(figsize=(10, 8))
         ax.imshow(ndvi, cmap="RdYlGn", vmin=-1, vmax=1)
         ax.axis("off")
+
+        output_path = f"ndvi_map_{city}_{asset_date}.png"
         fig.savefig(
-            f"ndvi_map_{city}_{asset_date}.png",
+            output_path,
             bbox_inches="tight",
             pad_inches=0,
         )
         plt.close(fig)
 
-        return
+        with open(output_path, "rb") as file:
+            image_bytes = file.read()
+
+        os.remove(output_path)
+
+        return image_bytes, asset_date, bbox
 
     print("No valid NDVI items were found.")
-
-get_heat_map("2025-01-01", "Brampton, ON, Canada")
-get_ndvi_map("2025-01-01", "Brampton, ON, Canada")
+    return None, None, None
