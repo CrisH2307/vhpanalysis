@@ -1,9 +1,20 @@
-import { GoogleMap, useJsApiLoader } from '@react-google-maps/api';
+import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
 import { useState, useEffect } from 'react';
+
+type Sticker = {
+  id: string;
+  lat: number;
+  lng: number;
+  type: 'tree' | 'house';
+};
 
 type MapPanelProps = {
   cityName?: string;
   className?: string;
+  placingMode: 'tree' | 'house' | 'removeTree' | 'removeHouse' | null;
+  onStickerPlaced: (lat: number, lng: number, type: 'tree' | 'house') => void;
+  onClearAll: () => void;
+  shouldClearAll: boolean;
 };
 
 // Google Maps API Key
@@ -29,8 +40,13 @@ const mapContainerStyle = {
 const MapPanel = ({
   cityName = 'Toronto',
   className,
+  placingMode,
+  onStickerPlaced,
+  shouldClearAll,
+  onClearAll,
 }: MapPanelProps) => {
   const [mapCenter, setMapCenter] = useState(CITY_COORDINATES[cityName] || CITY_COORDINATES.Toronto);
+  const [stickers, setStickers] = useState<Sticker[]>([]);
 
   const { isLoaded, loadError } = useJsApiLoader({
     id: 'google-map-script',
@@ -42,6 +58,48 @@ const MapPanel = ({
     const newCenter = CITY_COORDINATES[cityName] || CITY_COORDINATES.Toronto;
     setMapCenter(newCenter);
   }, [cityName]);
+
+  // Clear all stickers when requested
+  useEffect(() => {
+    if (shouldClearAll) {
+      setStickers([]);
+      onClearAll();
+    }
+  }, [shouldClearAll, onClearAll]);
+
+  // Handle map click to place or remove sticker
+  const handleMapClick = (e: google.maps.MapMouseEvent) => {
+    if (!placingMode || !e.latLng) return;
+
+    const lat = e.latLng.lat();
+    const lng = e.latLng.lng();
+
+    if (placingMode === 'tree' || placingMode === 'house') {
+      // Add sticker to map
+      const newSticker: Sticker = {
+        id: `${placingMode}-${Date.now()}`,
+        lat,
+        lng,
+        type: placingMode,
+      };
+      setStickers([...stickers, newSticker]);
+
+      // Notify parent component and log to console
+      onStickerPlaced(lat, lng, placingMode);
+      console.log(`${placingMode.toUpperCase()} placed at:`, { lat, lng });
+    }
+  };
+
+  // Handle marker click for removal
+  const handleMarkerClick = (stickerId: string, stickerType: 'tree' | 'house') => {
+    if (
+      (placingMode === 'removeTree' && stickerType === 'tree') ||
+      (placingMode === 'removeHouse' && stickerType === 'house')
+    ) {
+      setStickers(stickers.filter((s) => s.id !== stickerId));
+      console.log(`${stickerType.toUpperCase()} removed:`, stickerId);
+    }
+  };
 
   const composedClass = className ? `${baseClass} ${className}` : baseClass;
 
@@ -77,11 +135,13 @@ const MapPanel = ({
             mapContainerStyle={mapContainerStyle}
             center={mapCenter}
             zoom={11}
+            onClick={handleMapClick}
             options={{
               streetViewControl: false,
               mapTypeControl: true,
               fullscreenControl: true,
               zoomControl: true,
+              draggableCursor: placingMode ? 'crosshair' : 'default',
               styles: [
                 // Dark theme to match left toolbar
                 { elementType: 'geometry', stylers: [{ color: '#1e293b' }] },
@@ -164,7 +224,30 @@ const MapPanel = ({
                 },
               ],
             }}
-          />
+          >
+            {stickers.map((sticker) => (
+              <Marker
+                key={sticker.id}
+                position={{ lat: sticker.lat, lng: sticker.lng }}
+                onClick={() => handleMarkerClick(sticker.id, sticker.type)}
+                icon={{
+                  url: sticker.type === 'tree'
+                    ? 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24">
+                        <path fill="#22c55e" stroke="#ffffff" stroke-width="1" d="M12 2L8 8h2v2H7l-2 3h2v2H5l-2 3h7v6h4v-6h7l-2-3h-2v-2h2l-2-3h-3V8h2z"/>
+                      </svg>
+                    `)
+                    : 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24">
+                        <path fill="#3b82f6" stroke="#ffffff" stroke-width="1" d="M12 3L4 9v12h16V9l-8-6zm0 2.3L18 10v9h-5v-6h-2v6H6v-9l6-4.7z"/>
+                      </svg>
+                    `),
+                  scaledSize: new google.maps.Size(32, 32),
+                  anchor: new google.maps.Point(16, 16),
+                }}
+              />
+            ))}
+          </GoogleMap>
         )}
       </div>
     </section>
