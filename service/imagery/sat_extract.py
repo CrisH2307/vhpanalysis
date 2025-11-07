@@ -12,10 +12,14 @@ import requests
 import tempfile
 import xarray as xr
 from geopy.geocoders import Nominatim
+from typing import Optional, Tuple
+
 from pystac_client import Client
 from rasterio.session import AWSSession
 from rasterio.windows import from_bounds
 from rasterio.warp import transform_bounds
+
+from .session_store import store_session_data
 
 catalog = Client.open(
     "https://planetarycomputer.microsoft.com/api/stac/v1",
@@ -23,7 +27,6 @@ catalog = Client.open(
 )
 
 geolocator = Nominatim(user_agent="city_bbox_lookup", timeout=10)
-
 def geocode_city(city):
     location = geolocator.geocode(city, exactly_one=True)
 
@@ -119,7 +122,7 @@ def load_band(item, band_substring, bbox, apply_scale=False, nodata_value=0):
     return data, profile, asset
 
 
-def get_heat_map(date, city):
+def get_heat_map(date, city, session_id: Optional[str] = None):
     bbox = geocode_city(city)
     items = search_landsat_items(date, bbox)
 
@@ -139,6 +142,8 @@ def get_heat_map(date, city):
         thermal_k = thermal_dn * 0.00341802 + 149.0
         thermal_c = thermal_k - 273.15
         asset_date = item.properties["datetime"].split("T")[0]
+
+        store_session_data(session_id, "heat_map", thermal_c, asset_date, bbox)
 
         fig, ax = plt.subplots(figsize=(10, 8))
         ax.imshow(thermal_c, cmap="inferno")
@@ -163,7 +168,7 @@ def get_heat_map(date, city):
     return None, None, None
 
 
-def get_ndvi_map(date, city):
+def get_ndvi_map(date, city, session_id: Optional[str] = None):
     bbox = geocode_city(city)
     items = search_landsat_items(date, bbox)
 
@@ -195,6 +200,8 @@ def get_ndvi_map(date, city):
             continue
 
         asset_date = item.properties["datetime"].split("T")[0]
+
+        store_session_data(session_id, "ndvi_map", ndvi, asset_date, bbox)
 
         fig, ax = plt.subplots(figsize=(10, 8))
         ax.imshow(ndvi, cmap="RdYlGn", vmin=-1, vmax=1)
