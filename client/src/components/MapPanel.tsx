@@ -133,7 +133,7 @@ const MapPanel = ({
           else if (maxDiff < 1) newZoom = 10;
           else newZoom = 9;
 
-          setMapZoom(newZoom);
+          setMapZoom(newZoom+.5);
         }
       } catch (error) {
         if (controller.signal.aborted) {
@@ -350,7 +350,7 @@ const MapPanel = ({
                   east: imageryData.bounding_box[2],  // lon_max
                   west: imageryData.bounding_box[0],  // lon_min
                 }}
-                opacity={0.5}
+                opacity={0.3}
               />
             )}
 
