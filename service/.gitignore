@@ -1,0 +1,19 @@
+*.pkl
+pycache/
+.pyc
+.env
+venv/
+.env.local
+routes/pycache/
+routes/.pyc
+simulations/pycache/
+simulations/*.pyc
+imagery/pycache/
+path/
+
+# Ignore virtual environments
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc

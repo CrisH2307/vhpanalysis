@@ -1,0 +1,12 @@
+Flask
+flask-cors
+geopy
+matplotlib
+numpy
+odc-stac
+planetary-computer
+pystac-client
+rasterio
+requests
+xarray
+tensorflow==2.16.2
