@@ -1,4 +1,4 @@
-import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
+import { GoogleMap, useJsApiLoader, Marker, GroundOverlay } from '@react-google-maps/api';
 import { useState, useEffect } from 'react';
 
 type Sticker = {
@@ -8,8 +8,16 @@ type Sticker = {
   type: 'tree' | 'house';
 };
 
+type ImageryResponse = {
+  image: string;
+  image_date: string;
+  bounding_box: [number, number, number, number];
+};
+
 type MapPanelProps = {
   cityName?: string;
+  date?: string;
+  imageryType?: 'ndvi' | 'heat';
   className?: string;
   placingMode: 'tree' | 'house' | 'removeTree' | 'removeHouse' | null;
   onStickerPlaced: (lat: number, lng: number, type: 'tree' | 'house') => void;
@@ -19,6 +27,9 @@ type MapPanelProps = {
 
 // Google Maps API Key
 const GOOGLE_MAPS_API_KEY = 'AIzaSyAXNDPIs2VRwoAZSOr5DyTpyZAfmzkCQBo';
+
+// API Base URL
+const API_BASE_URL = (process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000').replace(/\/$/, '');
 
 // City coordinates
 const CITY_COORDINATES: Record<string, { lat: number; lng: number }> = {
@@ -39,6 +50,8 @@ const mapContainerStyle = {
 
 const MapPanel = ({
   cityName = 'Toronto',
+  date,
+  imageryType,
   className,
   placingMode,
   onStickerPlaced,
@@ -46,7 +59,10 @@ const MapPanel = ({
   onClearAll,
 }: MapPanelProps) => {
   const [mapCenter, setMapCenter] = useState(CITY_COORDINATES[cityName] || CITY_COORDINATES.Toronto);
+  const [mapZoom, setMapZoom] = useState(11);
   const [stickers, setStickers] = useState<Sticker[]>([]);
+  const [imageryData, setImageryData] = useState<ImageryResponse | null>(null);
+  const [imageryStatus, setImageryStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
 
   const { isLoaded, loadError } = useJsApiLoader({
     id: 'google-map-script',
@@ -66,6 +82,73 @@ const MapPanel = ({
       onClearAll();
     }
   }, [shouldClearAll, onClearAll]);
+
+  // Fetch imagery when city, date, or type changes
+  useEffect(() => {
+    if (!cityName || !date || !imageryType) {
+      setImageryData(null);
+      setImageryStatus('idle');
+      return;
+    }
+
+    const controller = new AbortController();
+
+    const fetchImagery = async () => {
+      setImageryStatus('loading');
+
+      try {
+        const params = new URLSearchParams({ city: cityName, date });
+        const response = await fetch(`${API_BASE_URL}/imagery/${imageryType}?${params.toString()}`, {
+          signal: controller.signal,
+        });
+        const payload = await response.json().catch(() => null);
+
+        if (!response.ok || !payload) {
+          const message = payload?.error ?? 'Failed to fetch imagery.';
+          throw new Error(message);
+        }
+
+        const imageryResponse = payload as ImageryResponse;
+        setImageryData(imageryResponse);
+        setImageryStatus('success');
+        console.log(`${imageryType.toUpperCase()} imagery loaded for ${cityName} on ${date}`);
+
+        // Recenter map to the imagery bounding box and adjust zoom
+        if (imageryResponse.bounding_box) {
+          const [lon_min, lat_min, lon_max, lat_max] = imageryResponse.bounding_box;
+          const centerLat = (lat_min + lat_max) / 2;
+          const centerLng = (lon_min + lon_max) / 2;
+          setMapCenter({ lat: centerLat, lng: centerLng });
+
+          // Calculate appropriate zoom level based on bounding box size
+          const latDiff = lat_max - lat_min;
+          const lngDiff = lon_max - lon_min;
+          const maxDiff = Math.max(latDiff, lngDiff);
+
+          // Adjust zoom based on area size (smaller area = higher zoom)
+          let newZoom = 11;
+          if (maxDiff < 0.1) newZoom = 13;
+          else if (maxDiff < 0.2) newZoom = 12;
+          else if (maxDiff < 0.5) newZoom = 11;
+          else if (maxDiff < 1) newZoom = 10;
+          else newZoom = 9;
+
+          setMapZoom(newZoom);
+        }
+      } catch (error) {
+        if (controller.signal.aborted) {
+          return;
+        }
+        setImageryData(null);
+        setImageryStatus('error');
+        console.error('Failed to fetch imagery:', error);
+      }
+    };
+
+    fetchImagery();
+
+    return () => controller.abort();
+  }, [cityName, date, imageryType]);
 
   // Handle map click to place or remove sticker
   const handleMapClick = (e: google.maps.MapMouseEvent) => {
@@ -105,6 +188,38 @@ const MapPanel = ({
 
   return (
     <section className={composedClass}>
+      {/* Imagery Status Indicator */}
+      {imageryStatus === 'loading' && (
+        <div className="mb-2 flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-700">
+          <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24">
+            <circle
+              className="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="4"
+              fill="none"
+            />
+            <path
+              className="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+            />
+          </svg>
+          Loading {imageryType?.toUpperCase()} imagery...
+        </div>
+      )}
+      {imageryStatus === 'error' && (
+        <div className="mb-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
+          ⚠️ Failed to load {imageryType?.toUpperCase()} imagery for this location/date
+        </div>
+      )}
+      {imageryStatus === 'success' && imageryData && (
+        <div className="mb-2 rounded-lg bg-green-50 px-3 py-2 text-xs text-green-700">
+          ✓ {imageryType?.toUpperCase()} imagery loaded ({imageryData.image_date})
+        </div>
+      )}
       <div className="flex flex-1 items-center justify-center">
         {loadError ? (
           <div className="text-sm text-red-500">
@@ -134,7 +249,7 @@ const MapPanel = ({
           <GoogleMap
             mapContainerStyle={mapContainerStyle}
             center={mapCenter}
-            zoom={11}
+            zoom={mapZoom}
             onClick={handleMapClick}
             options={{
               streetViewControl: false,
@@ -225,6 +340,21 @@ const MapPanel = ({
               ],
             }}
           >
+            {/* Imagery Overlay */}
+            {imageryData && imageryData.bounding_box && (
+              <GroundOverlay
+                url={`data:image/png;base64,${imageryData.image}`}
+                bounds={{
+                  north: imageryData.bounding_box[3], // lat_max
+                  south: imageryData.bounding_box[1], // lat_min
+                  east: imageryData.bounding_box[2],  // lon_max
+                  west: imageryData.bounding_box[0],  // lon_min
+                }}
+                opacity={0.5}
+              />
+            )}
+
+            {/* Tree and House Markers */}
             {stickers.map((sticker) => (
               <Marker
                 key={sticker.id}

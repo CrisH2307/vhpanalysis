@@ -4,6 +4,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from flask import Flask, session
+from flask_cors import CORS
 
 if __package__ is None or __package__ == "":
     project_root = Path(__file__).resolve().parent.parent
@@ -19,6 +20,9 @@ else:
 def create_app() -> Flask:
     app = Flask(__name__)
     app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev-secret")
+
+    # Enable CORS for all routes
+    CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
     session_store = InMemorySessionDataStore()
     set_session_data_store(session_store)

@@ -6,8 +6,19 @@ import ScorePanel from './components/ScorePanel';
 
 const App = () => {
   const [selectedCity, setSelectedCity] = useState('Toronto');
+  const [selectedDate, setSelectedDate] = useState('2025-01-01');
   const [placingMode, setPlacingMode] = useState<'tree' | 'house' | 'removeTree' | 'removeHouse' | null>(null);
   const [shouldClearAll, setShouldClearAll] = useState(false);
+
+  const handleCitySubmit = (city: string) => {
+    setSelectedCity(city);
+    console.log('City changed to:', city);
+  };
+
+  const handleDateChange = (date: string) => {
+    setSelectedDate(date);
+    console.log('Date changed to:', date);
+  };
 
   const handleSetPlacingMode = (mode: 'tree' | 'house' | 'removeTree' | 'removeHouse' | null) => {
     setPlacingMode(mode);
@@ -30,7 +41,12 @@ const App = () => {
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-100">
-      <LayoutHeader selectedCity={selectedCity} onCityChange={setSelectedCity} />
+      <LayoutHeader
+        city={selectedCity}
+        date={selectedDate}
+        onCitySubmit={handleCitySubmit}
+        onDateChange={handleDateChange}
+      />
       <div className="flex flex-1">
         <LeftToolbar
           placingMode={placingMode}
@@ -40,6 +56,8 @@ const App = () => {
         <main className="grid flex-1 gap-5 p-6 md:grid-cols-3">
           <MapPanel
             cityName={selectedCity}
+            date={selectedDate}
+            imageryType="ndvi"
             placingMode={placingMode}
             onStickerPlaced={handleStickerPlaced}
             shouldClearAll={shouldClearAll}
@@ -47,6 +65,8 @@ const App = () => {
           />
           <MapPanel
             cityName={selectedCity}
+            date={selectedDate}
+            imageryType="heat"
             placingMode={placingMode}
             onStickerPlaced={handleStickerPlaced}
             shouldClearAll={shouldClearAll}
