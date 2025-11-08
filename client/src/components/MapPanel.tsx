@@ -1,8 +1,6 @@
-import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
+import { GoogleMap, useJsApiLoader, Marker, OverlayView } from '@react-google-maps/api';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { renderToString } from "react-dom/server";
-import * as GiIcons from "react-icons/gi"; // <-- same icons used in LeftToolbar
-
+import * as GiIcons from 'react-icons/gi';
 
 type StickerType = 'tree' | 'shrub' | 'grass' | 'building' | 'road' | 'waterbody';
 type PlacingMode = StickerType | `remove${Capitalize<StickerType>}` | null;
@@ -366,48 +364,29 @@ const MapPanel = ({
     if (!e.latLng) return;
     const lat = e.latLng.lat();
     const lng = e.latLng.lng();
-    placeSticker(lat, lng);
+
+    if (placingMode === 'tree' || placingMode === 'house') {
+      const newSticker: Sticker = {
+        id: `${placingMode}-${Date.now()}`,
+        lat,
+        lng,
+        type: placingMode,
+      };
+      setStickers([...stickers, newSticker]);
+      onStickerPlaced(lat, lng, placingMode);
+      console.log(`${placingMode.toUpperCase()} placed at:`, { lat, lng });
+    }
   };
-
-  // Handle mouse down on map
-  const handleMouseDown = () => {
-    setIsMouseDown(true);
-  };
-
-  // Handle mouse up on map
-  const handleMouseUp = () => {
-    setIsMouseDown(false);
-  };
-
-  // Handle mouse move on map - place stickers while dragging
-  const handleMouseMove = (e: google.maps.MapMouseEvent) => {
-    if (!isMouseDown || !e.latLng) return;
-    const lat = e.latLng.lat();
-    const lng = e.latLng.lng();
-    placeSticker(lat, lng);
-  };
-
-  // Add global mouse up listener to handle mouse release outside map
-  useEffect(() => {
-    const handleGlobalMouseUp = () => {
-      setIsMouseDown(false);
-    };
-
-    window.addEventListener('mouseup', handleGlobalMouseUp);
-    return () => {
-      window.removeEventListener('mouseup', handleGlobalMouseUp);
-    };
-  }, []);
 
   // Handle marker click for removal (only for NDVI map)
   const handleMarkerClick = (stickerId: string, stickerType: StickerType) => {
     // Only allow sticker removal on NDVI map
     if (imageryType !== 'ndvi') return;
 
-    // Check if we're in the correct removal mode for this sticker type
-    const expectedRemoveMode = `remove${stickerType.charAt(0).toUpperCase() + stickerType.slice(1)}` as PlacingMode;
-
-    if (placingMode === expectedRemoveMode) {
+    if (
+      (placingMode === 'removeTree' && stickerType === 'tree') ||
+      (placingMode === 'removeHouse' && stickerType === 'house')
+    ) {
       setStickers(stickers.filter((s) => s.id !== stickerId));
       console.log(`${stickerType.toUpperCase()} removed:`, stickerId);
     }
@@ -469,6 +448,19 @@ const MapPanel = ({
   const isSatelliteDataError = imageryError?.includes('No valid thermal imagery found') ||
                                 imageryError?.includes('No valid ndvi imagery found') ||
                                 imageryError?.includes('No imagery found');
+
+  // Get icon component and color for each sticker type
+  const getStickerIconComponent = (type: StickerType) => {
+    const iconMap: Record<StickerType, { Icon: any; color: string }> = {
+      tree: { Icon: GiIcons.GiPineTree, color: '#22c55e' },
+      shrub: { Icon: GiIcons.GiFlowerPot, color: '#4ade80' },
+      grass: { Icon: GiIcons.GiGrass, color: '#86efac' },
+      building: { Icon: GiIcons.GiModernCity, color: '#94a3b8' },
+      road: { Icon: GiIcons.GiRoad, color: '#64748b' },
+      waterbody: { Icon: GiIcons.GiWaterDrop, color: '#3b82f6' }
+    };
+    return iconMap[type];
+  };
 
   return (
     <section className={composedClass}>
@@ -596,76 +588,44 @@ const MapPanel = ({
             }}
           >
 
-            {/* Sticker Markers - Only show on NDVI map */}
-            {imageryType === 'ndvi' && stickers.map((sticker) => {
-              // Helper function to get icon SVG for each sticker type
-              const getIconSVG = (type: StickerType): string => {
-                const svgBase = `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24">
-                  <defs><filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
-                    <feGaussianBlur in="SourceAlpha" stdDeviation="2"/>
-                    <feOffset dx="0" dy="2" result="offsetblur"/>
-                    <feComponentTransfer><feFuncA type="linear" slope="0.5"/></feComponentTransfer>
-                    <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
-                  </filter></defs>
-                  <circle cx="12" cy="12" r="11" fill="#ffffff" opacity="0.95" filter="url(#shadow)"/>`;
-
-                const svgEnd = `</svg>`;
-
-                switch (type) {
-                  case 'tree':
-                    // Pine tree icon (matching GiPineTree style)
-                    return svgBase + `<path d="M12 4 L8 10 L10 10 L7 15 L9 15 L6 20 L18 20 L15 15 L17 15 L14 10 L16 10 Z" fill="#22c55e" filter="url(#shadow)"/>` + svgEnd;
-                  case 'shrub':
-                    // Flower pot icon (matching GiFlowerPot style)
-                    return svgBase + `<path d="M8 14 L9 20 L15 20 L16 14 Z" fill="#8b4513" filter="url(#shadow)"/>
-                      <circle cx="10" cy="10" r="2.5" fill="#4ade80" filter="url(#shadow)"/>
-                      <circle cx="14" cy="10" r="2.5" fill="#4ade80" filter="url(#shadow)"/>
-                      <circle cx="12" cy="8" r="2.5" fill="#4ade80" filter="url(#shadow)"/>` + svgEnd;
-                  case 'grass':
-                    // Grass blades icon (matching GiGrass style)
-                    return svgBase + `<path d="M8 18 Q8 14, 7 10 Q7 8, 8 6" stroke="#86efac" stroke-width="1.5" fill="none" filter="url(#shadow)"/>
-                      <path d="M12 18 Q12 13, 11 9 Q11 7, 12 5" stroke="#86efac" stroke-width="1.5" fill="none" filter="url(#shadow)"/>
-                      <path d="M16 18 Q16 14, 15 10 Q15 8, 16 6" stroke="#86efac" stroke-width="1.5" fill="none" filter="url(#shadow)"/>` + svgEnd;
-                  case 'building':
-                    // Modern city building icon (matching GiModernCity style)
-                    return svgBase + `<rect x="7" y="8" width="4" height="12" fill="#94a3b8" filter="url(#shadow)"/>
-                      <rect x="13" y="5" width="4" height="15" fill="#94a3b8" filter="url(#shadow)"/>
-                      <rect x="8" y="10" width="1" height="1" fill="#475569"/>
-                      <rect x="9.5" y="10" width="1" height="1" fill="#475569"/>
-                      <rect x="8" y="12" width="1" height="1" fill="#475569"/>
-                      <rect x="9.5" y="12" width="1" height="1" fill="#475569"/>
-                      <rect x="14" y="7" width="1" height="1" fill="#475569"/>
-                      <rect x="15.5" y="7" width="1" height="1" fill="#475569"/>
-                      <rect x="14" y="9" width="1" height="1" fill="#475569"/>
-                      <rect x="15.5" y="9" width="1" height="1" fill="#475569"/>` + svgEnd;
-                  case 'road':
-                    // Road icon (matching GiRoad style)
-                    return svgBase + `<rect x="5" y="9" width="14" height="6" fill="#64748b" filter="url(#shadow)"/>
-                      <rect x="7" y="11" width="2" height="1" fill="#fbbf24"/>
-                      <rect x="11" y="11" width="2" height="1" fill="#fbbf24"/>
-                      <rect x="15" y="11" width="2" height="1" fill="#fbbf24"/>` + svgEnd;
-                  case 'waterbody':
-                    // Water drop icon (matching GiWaterDrop style)
-                    return svgBase + `<path d="M12 5 C12 5, 8 10, 8 13 C8 15.5, 9.8 18, 12 18 C14.2 18, 16 15.5, 16 13 C16 10, 12 5, 12 5 Z" fill="#3b82f6" filter="url(#shadow)"/>` + svgEnd;
-                  default:
-                    return svgBase + `<circle cx="12" cy="12" r="4" fill="#94a3b8" filter="url(#shadow)"/>` + svgEnd;
-                }
-              };
-
-              return (
-                <Marker
-                  key={sticker.id}
-                  position={{ lat: sticker.lat, lng: sticker.lng }}
-                  onClick={() => handleMarkerClick(sticker.id, sticker.type)}
-                  icon={{
-                    url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(getIconSVG(sticker.type)),
-                    scaledSize: new google.maps.Size(48, 48),
-                    anchor: new google.maps.Point(24, 24),
-                  }}
-                  zIndex={1000}
-                />
-              );
-            })}
+            {/* Tree and House Markers - Only show on NDVI map */}
+            {imageryType === 'ndvi' && stickers.map((sticker) => (
+              <Marker
+                key={sticker.id}
+                position={{ lat: sticker.lat, lng: sticker.lng }}
+                onClick={() => handleMarkerClick(sticker.id, sticker.type)}
+                icon={{
+                  url: sticker.type === 'tree'
+                    ? 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                      <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24">
+                        <defs><filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+                          <feGaussianBlur in="SourceAlpha" stdDeviation="2"/>
+                          <feOffset dx="0" dy="2" result="offsetblur"/>
+                          <feComponentTransfer><feFuncA type="linear" slope="0.5"/></feComponentTransfer>
+                          <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+                        </filter></defs>
+                        <circle cx="12" cy="12" r="11" fill="#ffffff" opacity="0.9"/>
+                        <path fill="#22c55e" stroke="#ffffff" stroke-width="2" filter="url(#shadow)" d="M12 2L8 8h2v2H7l-2 3h2v2H5l-2 3h7v6h4v-6h7l-2-3h-2v-2h2l-2-3h-3V8h2z"/>
+                      </svg>
+                    `)
+                    : 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                      <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24">
+                        <defs><filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+                          <feGaussianBlur in="SourceAlpha" stdDeviation="2"/>
+                          <feOffset dx="0" dy="2" result="offsetblur"/>
+                          <feComponentTransfer><feFuncA type="linear" slope="0.5"/></feComponentTransfer>
+                          <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+                        </filter></defs>
+                        <circle cx="12" cy="12" r="11" fill="#ffffff" opacity="0.9"/>
+                        <path fill="#3b82f6" stroke="#ffffff" stroke-width="2" filter="url(#shadow)" d="M12 3L4 9v12h16V9l-8-6zm0 2.3L18 10v9h-5v-6h-2v6H6v-9l6-4.7z"/>
+                      </svg>
+                    `),
+                  scaledSize: new google.maps.Size(48, 48),
+                  anchor: new google.maps.Point(24, 24),
+                }}
+                zIndex={1000}
+              />
+            ))}
           </GoogleMap>
         )}
       </div>

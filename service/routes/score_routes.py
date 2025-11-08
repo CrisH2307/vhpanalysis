@@ -36,6 +36,6 @@ def get_score():
     ndvi_bbox = session_data["ndvi_map"]["bbox"]
     heat_shape = heat_map.shape
 
-    score, explanation = calculate_score(heat_map, ndvi_map, bbox, city)
+    score = calculate_score(heat_map, ndvi_map, bbox, city)
 
-    return jsonify({"score": score, "explanation": explanation}), 200
+    return jsonify({"score": score}), 200

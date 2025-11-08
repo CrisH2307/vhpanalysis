@@ -5,6 +5,13 @@ import * as IoIcons from 'react-icons/io';
 type StickerType = 'tree' | 'shrub' | 'grass' | 'building' | 'road' | 'waterbody';
 type PlacingMode = StickerType | `remove${Capitalize<StickerType>}` | null;
 
+import * as GiIcons from 'react-icons/gi';
+import * as MdIcons from 'react-icons/md';
+import * as IoIcons from 'react-icons/io';
+
+type StickerType = 'tree' | 'shrub' | 'grass' | 'building' | 'road' | 'waterbody';
+type PlacingMode = StickerType | `remove${Capitalize<StickerType>}` | null;
+
 type LeftToolbarProps = {
   placingMode: PlacingMode;
   onSetPlacingMode: (mode: PlacingMode) => void;
@@ -24,18 +31,7 @@ const LeftToolbar = ({
     'flex h-12 w-12 items-center justify-center rounded-lg bg-slate-700 text-slate-300 transition-all hover:bg-slate-600 hover:text-white active:scale-95';
 
   const activeButtonClass =
-    'flex h-12 w-12 items-center justify-center rounded-lg bg-blue-600 text-white shadow-lg ring-2 ring-blue-400';
-
-  const GiPineTree = GiIcons.GiPineTree as React.ComponentType<{ className?: string }>;
-  const GiFlowerPot = GiIcons.GiFlowerPot as React.ComponentType<{ className?: string }>;
-  const GiGrass = GiIcons.GiGrass as React.ComponentType<{ className?: string }>;
-  const GiModernCity = GiIcons.GiModernCity as React.ComponentType<{ className?: string }>;
-  const GiRoad = GiIcons.GiRoad as React.ComponentType<{ className?: string }>;
-  const GiWaterDrop = GiIcons.GiWaterDrop as React.ComponentType<{ className?: string }>;
-  const MdClose = MdIcons.MdClose as React.ComponentType<{ className?: string }>;
-  const IoMdRefresh = IoIcons.IoMdRefresh as React.ComponentType<{ className?: string }>;
-  const IoMdPlay = IoIcons.IoMdPlay as React.ComponentType<{ className?: string }>;
-
+    'group relative flex h-12 w-12 items-center justify-center rounded-sm bg-blue-600 text-white transition-all hover:bg-blue-500 active:bg-blue-700';
 
   return (
     <aside className="flex flex-col gap-3 border-r border-slate-300 bg-slate-800 p-3 shadow-lg overflow-y-auto">

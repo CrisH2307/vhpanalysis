@@ -8,7 +8,6 @@ import numpy as np
 from flask import Blueprint, jsonify, request, session
 from matplotlib.colors import TwoSlopeNorm
 from pathlib import Path
-import time
 
 from service.imagery.session_store import get_session_data
 from service.simulation.model import build_unet, to_tensor
@@ -89,6 +88,8 @@ def simulate():
         row = int(np.clip(row, 0, heat_shape[0] - 1))
         col = int(np.clip(col, 0, heat_shape[1] - 1))
 
+        print(f"Shape: {heat_shape} Row: {row} Col: {col}")
+
         if point_type == "trees":
             ndvi_delta[row, col] += 0.3
         elif point_type == "shrubs":
@@ -116,12 +117,8 @@ def simulate():
     heat_delta = np.zeros_like(padded_ndvi, dtype=np.float32)
     heat_weights = np.zeros_like(padded_ndvi, dtype=np.float32)
 
-    timer = time.time()
-
     for row in range(0, padded_rows - tile_size + 1, stride):
         for col in range(0, padded_cols - tile_size + 1, stride):
-            if np.isnan(padded_ndvi[row : row + tile_size, col : col + tile_size]).all():
-                continue
             ndvi_chunk = padded_ndvi[row : row + tile_size, col : col + tile_size]
             chunk_tensor = to_tensor([{"ndvi_delta": ndvi_chunk}], "ndvi_delta")
             predicted_chunk = model.predict(chunk_tensor, verbose=0)
@@ -129,8 +126,6 @@ def simulate():
 
             heat_delta[row : row + tile_size, col : col + tile_size] += predicted_chunk
             heat_weights[row : row + tile_size, col : col + tile_size] += 1.0
-
-    print(f"Generation time: {time.time() - timer}")
 
     heat_weights = np.where(heat_weights == 0, 1.0, heat_weights)
     heat_delta = heat_delta / heat_weights

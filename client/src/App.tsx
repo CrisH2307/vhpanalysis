@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
-import LayoutHeader from './components/LayoutHeader';
+import { useState } from 'react';
 import LeftToolbar from './components/LeftToolbar';
+
+import LayoutHeader from './components/LayoutHeader';
 import MapPanel from './components/MapPanel';
 import ScorePanel from './components/ScorePanel';
 
@@ -10,6 +11,7 @@ type PlacingMode = StickerType | `remove${Capitalize<StickerType>}` | null;
 const App = () => {
   const [selectedCity, setSelectedCity] = useState('Brampton');
   const [selectedDate, setSelectedDate] = useState('2022-01-01');
+  const [placingMode, setPlacingMode] = useState<PlacingMode>(null);
   const [placingMode, setPlacingMode] = useState<PlacingMode>(null);
   const [shouldClearAll, setShouldClearAll] = useState(false);
   const [simulationMode, setSimulationMode] = useState(false);
@@ -50,6 +52,7 @@ const App = () => {
   };
 
   const handleSetPlacingMode = (mode: PlacingMode) => {
+  const handleSetPlacingMode = (mode: PlacingMode) => {
     setPlacingMode(mode);
   };
 
@@ -59,8 +62,13 @@ const App = () => {
     setStickerLngs(prev => [...prev, lng]);
     setStickerTypes(prev => [...prev, type]);
 
+  const handleStickerPlaced = (lat: number, lng: number, type: StickerType) => {
+    // Log to console (terminal)
     console.log(`${type.toUpperCase()} placed at coordinates:`, { latitude: lat, longitude: lng });
     // Keep placing mode active so user can place multiple stickers rapidly
+    // Keep placing mode active for continuous placement
+    setHasScenarioChanges(true);
+    setSimulationMessage(null);
   };
 
   const handleClearAll = () => {
@@ -87,6 +95,14 @@ const App = () => {
       setSimulatedHeatmap(null);
       setSimulatedBoundingBox(null);
       setSimulatedImageDate(null);
+    setHasScenarioChanges(false);
+    setSimulationMode(false);
+    setSimulationMessage(null);
+  };
+
+  const toggleSimulationMode = () => {
+    if (!hasScenarioChanges) {
+      setSimulationMessage('Add or remove a sticker before running simulation.');
       return;
     }
 

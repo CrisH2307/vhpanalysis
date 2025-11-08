@@ -7,148 +7,6 @@ from rasterio.features import rasterize
 from rasterio.transform import from_bounds
 from typing import Tuple
 
-import requests
-import json
-import os
-
-def calculate_city_score_with_explanation(
-    city_name,
-    city_area,
-    hot_surface_area,
-    vegetation_surface_area,
-    heat_map_in_city_mean,
-    ndvi_map_in_city_mean,
-    heat_map_out_of_city_mean,
-    ndvi_map_out_of_city_mean,
-    city_population
-):
-    # --- Derived metrics ---
-    vegetation_ratio = vegetation_surface_area / (city_area)
-    hot_surface_ratio = hot_surface_area / (city_area)
-    heat_diff = heat_map_in_city_mean - heat_map_out_of_city_mean
-    ndvi_diff = ndvi_map_in_city_mean - ndvi_map_out_of_city_mean
-    pop_density = city_population / city_area
-
-    # --- Scoring model ---
-    vegetation_score = min(1.0, vegetation_ratio * 8_000)
-    heat_penalty = max(0.0, 1 - (heat_diff / 5))
-    ndvi_balance = max(0.0, min(1.0, 0.5 + ndvi_diff * 10))
-    density_penalty = max(0.0, 1 - (pop_density / 10_000))
-    hot_surface_penalty = max(0.0, 1 - (hot_surface_ratio * 500_000))
-
-    score = (
-        vegetation_score * 0.3 +
-        heat_penalty * 0.25 +
-        ndvi_balance * 0.2 +
-        density_penalty * 0.15 +
-        hot_surface_penalty * 0.1
-    ) * 100
-
-    score = max(0, min(100, score))
-
-    # --- Descriptive helpers ---
-    def describe(value, thresholds, labels):
-        if value < thresholds[0]:
-            return labels[0]
-        elif value < thresholds[1]:
-            return labels[1]
-        else:
-            return labels[2]
-
-    # --- Descriptive sections ---
-    vegetation_desc = describe(
-        vegetation_ratio, [0.1/100, 0.3/100],
-        ["scarce vegetation cover", "moderate vegetation presence", "rich and balanced vegetation distribution"]
-    )
-
-    heat_desc = describe(
-        heat_diff, [0.5, 2.0],
-        ["excellent thermal control with minimal urban heat island effect", 
-         "slightly elevated heat compared to surroundings", 
-         "noticeably higher heat accumulation within the city"]
-    )
-
-    ndvi_desc = "above the surrounding regions" if ndvi_diff > 0 else "below the surrounding regions"
-
-    density_desc = describe(
-        pop_density, [3000, 6000],
-        ["low population density", "moderate population density", "very high population density"]
-    )
-
-    hot_surface_desc = describe(
-        hot_surface_ratio, [0.00005, 0.0002],
-        ["minimal proportion of heat-absorbing surfaces", 
-         "moderate level of hot, impervious areas", 
-         "large fraction of surfaces contributing to heat retention"]
-    )
-
-    sustainability_level = describe(
-        score, [40, 70],
-        ["low environmental sustainability balance", 
-         "moderate environmental sustainability balance", 
-         "high environmental sustainability balance"]
-    )
-
-    # --- Explanatory paragraphs ---
-    summary = (
-        f"{city_name} demonstrates a {sustainability_level}, scoring {score:.1f} out of 100 on the environmental prosperity index. "
-        f"This score represents a balance between vegetation cover, heat dynamics, and population density — key indicators of how effectively "
-        f"the city manages its natural and built environments."
-    )
-
-    vegetation_section = (
-        f"The city shows {vegetation_desc}, with vegetation covering approximately {vegetation_ratio*100:.3f}% of the total area. "
-        f"This level of greenery plays a critical role in maintaining ecological stability, improving air quality, and moderating urban heat. "
-        f"Higher vegetation density often correlates with improved livability and resilience against rising temperatures."
-    )
-
-    heat_section = (
-        f"Thermal analysis reveals {heat_desc}. The average surface temperature within the city is {heat_map_in_city_mean:.2f}°C, "
-        f"compared to {heat_map_out_of_city_mean:.2f}°C outside its borders. A difference of {heat_diff:.2f}°C indicates the extent "
-        f"of the urban heat island effect, which can influence energy consumption, comfort, and public health."
-    )
-
-    ndvi_section = (
-        f"The vegetation vitality, as indicated by the NDVI metric, is {ndvi_desc}. "
-        f"With an in-city NDVI mean of {ndvi_map_in_city_mean:.3f} versus {ndvi_map_out_of_city_mean:.3f} outside, "
-        f"this measure reflects the overall health and density of green vegetation. Positive NDVI differences typically signal "
-        f"strong local ecosystem performance and better CO₂ absorption rates."
-    )
-
-    density_section = (
-        f"The population density is approximately {pop_density:.0f} people per square kilometer, categorized as {density_desc}. "
-        f"Higher density increases pressure on green spaces and often correlates with elevated heat and reduced per-capita vegetation. "
-        f"Balanced density enables efficient infrastructure while preserving access to natural environments."
-    )
-
-    hot_surface_section = (
-        f"The proportion of thermally active or impervious surfaces is {hot_surface_ratio*100:.5f}%, which suggests {hot_surface_desc}. "
-        f"Reducing such surfaces through green roofs, reflective materials, or expanded canopy coverage could substantially enhance the city’s heat resilience."
-    )
-
-    # --- Combine all paragraphs ---
-    explanation = "\n\n".join([
-        summary,
-        vegetation_section,
-        heat_section,
-        ndvi_section,
-        density_section,
-        hot_surface_section
-    ])
-
-    return score, explanation
-
-def get_city_opendata(city):
-    city = city.split(',')[0]
-    url = f"https://api.api-ninjas.com/v1/city?name={city}"
-    res = requests.get(
-        url,
-        headers={
-            "X-Api-Key": os.getenv("API_NINJAS_API_KEY")
-        }
-    )
-    json_data = json.loads(res.content)
-    return json_data
 
 def create_city_mask(
     geometry: Polygon | MultiPolygon,
@@ -211,9 +69,6 @@ def calculate_score(heat_map: np.ndarray, ndvi_map: np.ndarray, bbox: Tuple[floa
     heat_map_out_of_city = np.where(~mask, heat_map, np.nan)
     ndvi_map_out_of_city = np.where(~mask, ndvi_map, np.nan)
 
-    vegetation_threshold = 0.2
-    vegetation_map_in_city = np.where(ndvi_map_in_city > vegetation_threshold, ndvi_map_in_city, np.nan)
-
     heat_values_in_city = heat_map[mask]
     if heat_values_in_city.size:
         min_heat_in_city = float(np.nanmin(heat_values_in_city))
@@ -224,30 +79,25 @@ def calculate_score(heat_map: np.ndarray, ndvi_map: np.ndarray, bbox: Tuple[floa
         heat_threshold = float("nan")
         hot_spots = np.full_like(heat_map, np.nan)
 
-    city_data = get_city_opendata(city)
-
     heat_map_in_city_mean = np.nanmean(heat_map_in_city)
     ndvi_map_in_city_mean = np.nanmean(ndvi_map_in_city)
     heat_map_out_of_city_mean = np.nanmean(heat_map_out_of_city)
     ndvi_map_out_of_city_mean = np.nanmean(ndvi_map_out_of_city)
     hot_surface_area = np.count_nonzero(~np.isnan(hot_spots)) * (30*30) / 1000000 # m^2 to km^2
-    vegetation_surface_area = np.count_nonzero(~np.isnan(vegetation_map_in_city)) * (30*30) / 1000000 # m^2 to km^2
-    city_area = mask.sum() * (30*30) / 1000000 # m^2 to km^2
-    city_population = 0
-    if city_data:
-        city_population = city_data[0]["population"]
 
-    score, explanation = calculate_city_score_with_explanation(
-        city,
-        city_area,
-        hot_surface_area,
-        vegetation_surface_area,
-        heat_map_in_city_mean,
-        ndvi_map_in_city_mean,
-        heat_map_out_of_city_mean,
-        ndvi_map_out_of_city_mean,
-        city_population
-    )
+    print(f"Hot surface area: {hot_surface_area} m^2")
+    print(f"Heat map in city mean: {heat_map_in_city_mean}")
+    print(f"NDVI map in city mean: {ndvi_map_in_city_mean}")
+    print(f"Heat map out of city mean: {heat_map_out_of_city_mean}")
+    print(f"NDVI map out of city mean: {ndvi_map_out_of_city_mean}")
 
-    return score, explanation
+    save_masked_image(hot_spots, "Heat Hot Spots", f"{city.replace(',', '_')}_heat_hotspots.png")
+    save_masked_image(heat_map_in_city, "Heat Map - Inside City", f"{city.replace(',', '_')}_heat_in_city.png")
+    save_masked_image(ndvi_map_in_city, "NDVI Map - Inside City", f"{city.replace(',', '_')}_ndvi_in_city.png", cmap="RdYlGn")
+    save_masked_image(heat_map_out_of_city, "Heat Map - Outside City", f"{city.replace(',', '_')}_heat_out_city.png")
+    save_masked_image(ndvi_map_out_of_city, "NDVI Map - Outside City", f"{city.replace(',', '_')}_ndvi_out_city.png", cmap="RdYlGn")
+
+    return int(mask.sum())
+    
+
 
