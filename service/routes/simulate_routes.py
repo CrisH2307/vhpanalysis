@@ -19,7 +19,7 @@ weights_path = (
     Path(__file__).resolve().parent.parent
     / "simulation"
     / "checkpoints"
-    / "epoch_04.weights.h5"
+    / "epoch_06.weights.h5"
 )
 model = build_unet()
 model.load_weights(weights_path)
