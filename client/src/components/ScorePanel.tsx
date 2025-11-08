@@ -70,7 +70,13 @@ const heatPlans = {
   },
 };
 
-const ScorePanel = () => {
+type ScorePanelProps = {
+  className?: string;
+};
+
+const baseClass = "flex h-full flex-col rounded-xl border border-slate-700 bg-slate-800 p-5 shadow-lg overflow-auto";
+
+const ScorePanel = ({ className }: ScorePanelProps) => {
   const [score, setScore] = useState(2); // Example starting score
 
   useEffect(() => {
@@ -85,8 +91,10 @@ const ScorePanel = () => {
   else if (score <= 10) plan = heatPlans.moderate;
   else plan = heatPlans.high;
 
+  const composedClass = className ? `${baseClass} ${className}` : baseClass;
+
   return (
-    <section className="flex min-h-[400px] flex-col rounded-xl border border-slate-700 bg-slate-800 p-5 shadow-lg">
+    <section className={composedClass}>
       <header className="mb-3">
         <h2 className="text-lg font-semibold text-slate-100">Urban Heat Score</h2>
         <p className="text-xs text-slate-400">

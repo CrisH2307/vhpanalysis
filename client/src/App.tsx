@@ -15,6 +15,7 @@ const App = () => {
   const [simulationMode, setSimulationMode] = useState(false);
   const [hasScenarioChanges, setHasScenarioChanges] = useState(false);
   const [simulationMessage, setSimulationMessage] = useState<string | null>(null);
+  const [cntMapsLoaded, setCntMapsLoaded] = useState(0);
 
   // Shared map state for synchronized panning and zooming
   const [sharedMapCenter, setSharedMapCenter] = useState<{ lat: number; lng: number } | undefined>(undefined);
@@ -40,6 +41,11 @@ const App = () => {
       console.log('Total stickers:', stickerLats.length);
     }
   }, [stickerLats, stickerLngs, stickerTypes]);
+
+  const mapLoaded = () => {
+    console.log('mapLoaded', cntMapsLoaded);
+    setCntMapsLoaded(prev => prev + 1);
+  }
 
   const handleCitySubmit = (city: string) => {
     setSelectedCity(city);
@@ -172,6 +178,10 @@ const App = () => {
     }
   };
 
+  useEffect(() => {
+    console.log('cntMapsLoaded', cntMapsLoaded);
+  }, [cntMapsLoaded]);
+
   return (
     <div className="flex min-h-screen flex-col bg-slate-800">
       <LayoutHeader
@@ -180,7 +190,7 @@ const App = () => {
         onCitySubmit={handleCitySubmit}
         onDateChange={handleDateChange}
       />
-      <div className="flex flex-1">
+      <div className="flex flex-1" style={{maxHeight: 'calc(100vh - 73px)'}}>
         <LeftToolbar
           placingMode={placingMode}
           onSetPlacingMode={handleSetPlacingMode}
@@ -188,68 +198,18 @@ const App = () => {
           simulationEnabled={simulationMode}
           onToggleSimulation={toggleSimulationMode}
         />
-        <main className="grid flex-1 gap-2 p-2 md:grid-cols-3">
-          <MapPanel
-            cityName={selectedCity}
-            date={selectedDate}
-            imageryType="ndvi"
-            placingMode={placingMode}
-            onStickerPlaced={handleStickerPlaced}
-            shouldClearAll={shouldClearAll}
-            onClearAll={handleClearAllComplete}
-            sharedMapCenter={sharedMapCenter}
-            sharedMapZoom={sharedMapZoom}
-            onMapCenterChange={setSharedMapCenter}
-            onMapZoomChange={setSharedMapZoom}
-          />
-          {!simulationMode ? (
-            <MapPanel
-              cityName={selectedCity}
-              date={selectedDate}
-              imageryType="heat"
-              placingMode={null}
-              onStickerPlaced={handleStickerPlaced}
-              shouldClearAll={shouldClearAll}
-              onClearAll={handleClearAllComplete}
-              sharedMapCenter={sharedMapCenter}
-              sharedMapZoom={sharedMapZoom}
-              onMapCenterChange={setSharedMapCenter}
-              onMapZoomChange={setSharedMapZoom}
-            />
-          ) : (
-            <div className="flex flex-col gap-5">
-              <div className="rounded-2xl border border-slate-700 bg-slate-900/40 px-2 py-1 shadow-sm">
-                <div className="mb-3 flex items-center justify-between text-xs uppercase tracking-[0.3em] text-slate-400">
-                  <span>Map 2</span>
-                  <span>Original</span>
-                </div>
-                <MapPanel
-                  cityName={selectedCity}
-                  date={selectedDate}
-                  imageryType="heat"
-                  placingMode={null}
-                  onStickerPlaced={handleStickerPlaced}
-                  shouldClearAll={shouldClearAll}
-                  onClearAll={handleClearAllComplete}
-                  sharedMapCenter={sharedMapCenter}
-                  sharedMapZoom={sharedMapZoom}
-                  onMapCenterChange={setSharedMapCenter}
-                  onMapZoomChange={setSharedMapZoom}
-                />
+        <main className="grid flex-1 gap-2 p-2 md:grid-cols-3 md:auto-rows-fr">
+          <div className="flex h-full flex-col gap-5">
+            <div className="flex flex-1 flex-col rounded-2xl border border-slate-700 bg-slate-900/40 shadow-sm">
+              <div className="m-2 flex items-center justify-between text-xs uppercase text-slate-400">
+                <span>Normalized Difference Vegetation Index</span>
               </div>
-              <div className="rounded-2xl border border-dashed border-amber-400 bg-slate-900/60 px-2 py-1 shadow-inner">
-                <div className="mb-3 flex items-center justify-between text-xs uppercase tracking-[0.3em] text-amber-300">
-                  <span>Map 2</span>
-                  <span>Simulated</span>
-                </div>
-                <div className="mb-2 text-xs text-slate-400">
-                  {simulatedHeatmap ? 'Simulated heat map based on your changes' : 'Waiting for simulation...'}
-                </div>
+              <div className="flex flex-1">
                 <MapPanel
                   cityName={selectedCity}
                   date={selectedDate}
-                  imageryType="heat"
-                  placingMode={null}
+                  imageryType="ndvi"
+                  placingMode={placingMode}
                   onStickerPlaced={handleStickerPlaced}
                   shouldClearAll={shouldClearAll}
                   onClearAll={handleClearAllComplete}
@@ -257,11 +217,78 @@ const App = () => {
                   sharedMapZoom={sharedMapZoom}
                   onMapCenterChange={setSharedMapCenter}
                   onMapZoomChange={setSharedMapZoom}
+                  cntMapsLoaded={cntMapsLoaded}
+                  mapLoaded={mapLoaded}
+                  className="h-full flex-1"
                 />
               </div>
             </div>
-          )}
-          <ScorePanel />
+          </div>
+          <div className="flex h-full flex-col gap-2">
+            <div className="flex flex-1 flex-col rounded-2xl border border-slate-700 bg-slate-900/40 shadow-sm">
+              <div className="m-2 flex items-center justify-between text-xs uppercase text-slate-400">
+                <span>Land Surface Temperature</span>
+                <span>Original</span>
+              </div>
+              <div className="flex flex-1">
+                <MapPanel
+                  cityName={selectedCity}
+                  date={selectedDate}
+                  imageryType="heat"
+                  placingMode={null}
+                  onStickerPlaced={handleStickerPlaced}
+                  shouldClearAll={shouldClearAll}
+                  onClearAll={handleClearAllComplete}
+                  sharedMapCenter={sharedMapCenter}
+                  sharedMapZoom={sharedMapZoom}
+                  onMapCenterChange={setSharedMapCenter}
+                  onMapZoomChange={setSharedMapZoom}
+                  cntMapsLoaded={cntMapsLoaded}
+                  mapLoaded={mapLoaded}
+                  className="h-full flex-1"
+                />
+              </div>
+            </div>
+            {simulationMode ? (
+              <div className="flex flex-1 flex-col rounded-2xl border border-dashed border-amber-400 bg-slate-900/60 shadow-inner">
+                <div className="m-2 flex items-center justify-between text-xs uppercase text-amber-300">
+                  <span>Land Surface Temperature</span>
+                  <span>Simulated</span>
+                </div>
+                <div className="mb-2 px-2 text-xs text-slate-400">
+                  {simulatedHeatmap ? 
+                    <div className="flex flex-1">
+                    <MapPanel
+                      cityName={selectedCity}
+                      date={selectedDate}
+                      imageryType="heat"
+                      placingMode={null}
+                      onStickerPlaced={handleStickerPlaced}
+                      shouldClearAll={shouldClearAll}
+                      onClearAll={handleClearAllComplete}
+                      sharedMapCenter={sharedMapCenter}
+                      sharedMapZoom={sharedMapZoom}
+                      onMapCenterChange={setSharedMapCenter}
+                      onMapZoomChange={setSharedMapZoom}
+                      cntMapsLoaded={cntMapsLoaded}
+                      mapLoaded={mapLoaded}
+                      className="h-full flex-1"
+                    />
+                  </div> : 
+                  <div className="flex flex-1">
+                    <div className="flex flex-1">
+                      Waiting for simulation...
+                    </div>
+                  </div>
+                  }
+                </div>
+                
+              </div>
+            ) : null}
+          </div>
+          <div className="flex h-full flex-col">
+            <ScorePanel className="flex-1" />
+          </div>
         </main>
       </div>
     </div>

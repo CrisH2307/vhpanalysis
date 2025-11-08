@@ -19,6 +19,8 @@ type ImageryResponse = {
 };
 
 type MapPanelProps = {
+  cntMapsLoaded: number;
+  mapLoaded: () => void;
   cityName?: string;
   date?: string;
   imageryType?: 'ndvi' | 'heat';
@@ -51,7 +53,7 @@ const CITY_COORDINATES: Record<string, { lat: number; lng: number }> = {
 };
 
 const baseClass =
-  'flex min-h-[400px] flex-col rounded-2xl border border-slate-200 bg-white p-5';
+  'flex h-full flex-col rounded border border-slate-200 bg-white m-1';
 
 const mapContainerStyle = {
   width: '100%',
@@ -79,6 +81,8 @@ const MapPanel = ({
   overlayOpacity = 0.6,
   onOverlayOpacityChange,
   showOpacityControl = false,
+  cntMapsLoaded,
+  mapLoaded,
 }: MapPanelProps) => {
   const [mapCenter, setMapCenter] = useState(sharedMapCenter || CITY_COORDINATES[cityName] || CITY_COORDINATES.Toronto);
   const [mapZoom, setMapZoom] = useState(sharedMapZoom || 11);
@@ -246,6 +250,7 @@ const MapPanel = ({
         const imageryResponse = payload as ImageryResponse;
         setImageryData(imageryResponse);
         setImageryStatus('success');
+        mapLoaded();
         setImageryError(null);
 
         console.log(`${imageryLabel} imagery loaded for ${cityName} on ${date}`);
@@ -400,178 +405,180 @@ const MapPanel = ({
   };
 
   return (
-    <section className={composedClass}>
+    <div className="flex flex-col h-full w-full">
       {/* Imagery Status Indicator */}
-      {imageryStatus === 'success' && imageryData && (
-        <div className="mb-2 rounded-lg bg-green-50 px-3 py-2 text-xs text-green-700">
+      {/* {imageryStatus === 'success' && imageryData && (
+        <div className="mb-2 rounded-lg bg-green-50 px-3 py-2 text-xs text-green-700 mx-1">
           ✓ {imageryLabel} imagery loaded ({imageryData.image_date})
         </div>
-      )}
-      {showOpacityControl && (
-        <label className="mb-2 flex items-center gap-3 text-xs text-slate-400">
-          <span>Overlay opacity</span>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.05}
-            value={overlayOpacity}
-            onChange={(e) => onOverlayOpacityChange?.(Number(e.target.value))}
-            disabled={imageryStatus !== 'success'}
-            className="flex-1 accent-amber-400 disabled:opacity-50"
-          />
-          <span className="tabular-nums text-slate-500">{Math.round(overlayOpacity * 100)}%</span>
-        </label>
-      )}
-
-        <div className="flex flex-1 items-center justify-center">
-        {/* Show error screen if imagery failed to load */}
-        {imageryStatus === 'error' ? (
-          <div className="flex flex-col items-center justify-center gap-4 text-slate-400" style={{ minHeight: '320px' }}>
-            {/* Satellite Icon (grayed out) */}
-            <div className="relative opacity-50">
-              <img
-                src="/Settilite.png"
-                alt="Satellite"
-                className="h-32 w-32 object-contain grayscale"
-              />
-            </div>
-
-            {/* Error message */}
-            <div className="flex flex-col items-center gap-2 text-center">
-              <div className="flex items-center gap-2 text-red-400">
-                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span className="text-sm font-medium">
-                  {isSatelliteDataError
-                    ? 'Satellite Could Not Retrieve Imagery'
-                    : 'Failed to Load Imagery'}
-                </span>
-              </div>
-              <span className="text-xs opacity-75 max-w-xs">
-                {isSatelliteDataError
-                  ? `No ${imageryLabel} data available for ${cityName} on ${date}. Try a different date or location.`
-                  : `Unable to load ${imageryLabel} imagery. Please check your connection and try again.`}
-              </span>
-            </div>
-          </div>
-        ) : loadError ? (
-          <div className="text-sm text-red-500">Error loading maps. Please check your connection.</div>
-        ) : !isLoaded || imageryStatus === 'loading' || imageryStatus === 'idle' ? (
-          <div className="flex flex-col items-center justify-center gap-4 text-slate-400" style={{ minHeight: '320px' }}>
-            {/* Satellite Image */}
-            <div className="relative">
-              <img
-                src="/Settilite.png"
-                alt="Satellite"
-                className="h-32 w-32 animate-pulse object-contain"
-              />
-            </div>
-
-            {/* Loading text */}
-            <div className="flex flex-col items-center gap-2">
-              <div className="flex items-center gap-2">
-                <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24">
-                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" className="opacity-25"/>
-                  <path fill="currentColor" className="opacity-75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                </svg>
-                <span className="text-sm font-medium">
-                  Connecting to LANDSAT 9 Satellite
-                </span>
-              </div>
-              <span className="text-xs opacity-75">
-                {!isLoaded ? 'Initializing map interface...' : `Retrieving ${imageryLabel} data...`}
-              </span>
-            </div>
-          </div>
-        ) : (
-          <GoogleMap
-            mapContainerStyle={mapContainerStyle}
-            center={mapCenter}
-            zoom={mapZoom}
-            onClick={handleMapClick}
-            onLoad={(mapInstance) => setMap(mapInstance)}
-            onUnmount={() => setMap(null)}
-            onCenterChanged={handleCenterChanged}
-            onZoomChanged={handleZoomChanged}
-            options={{
-              streetViewControl: false,
-              mapTypeControl: true,
-              fullscreenControl: true,
-              zoomControl: true,
-              draggableCursor: placingMode ? 'crosshair' : 'default',
-              backgroundColor: 'transparent',
-              // Enable smooth animations and gestures
-              gestureHandling: 'greedy',
-              // Disable tilt for smoother 2D panning
-              tilt: 0,
-              styles: [
-                // Make all geometry transparent/invisible
-                { elementType: 'geometry', stylers: [{ visibility: 'off' }] },
-                { elementType: 'geometry.fill', stylers: [{ visibility: 'off' }] },
-                { elementType: 'geometry.stroke', stylers: [{ visibility: 'off' }] },
-
-                // Keep labels visible with good contrast
-                { elementType: 'labels.text.stroke', stylers: [{ color: '#000000', weight: 3 }] },
-                { elementType: 'labels.text.fill', stylers: [{ color: '#ffffff' }] },
-
-                // Roads - semi-transparent overlay
-                { featureType: 'road', elementType: 'geometry', stylers: [{ visibility: 'on', color: '#ffffff' }] },
-                { featureType: 'road', elementType: 'geometry.fill', stylers: [{ visibility: 'on', color: '#ffffff', lightness: 100 }] },
-                { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ visibility: 'on', color: '#000000', weight: 0.5 }] },
-                { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#ffffff' }] },
-                { featureType: 'road', elementType: 'labels.text.stroke', stylers: [{ color: '#000000', weight: 2 }] },
-
-                // Highways - slightly more visible
-                { featureType: 'road.highway', elementType: 'geometry', stylers: [{ visibility: 'on', color: '#ffeb3b', lightness: 50 }] },
-                { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ visibility: 'on', color: '#000000', weight: 1 }] },
-
-                // Water - keep transparent
-                { featureType: 'water', elementType: 'geometry', stylers: [{ visibility: 'off' }] },
-                { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#ffffff' }] },
-                { featureType: 'water', elementType: 'labels.text.stroke', stylers: [{ color: '#000000', weight: 2 }] },
-
-                // Administrative boundaries
-                { featureType: 'administrative', elementType: 'geometry.stroke', stylers: [{ visibility: 'on', color: '#ffffff', weight: 1 }] },
-              ],
-            }}
-          >
-
-            {/* Sticker Markers - Only show on NDVI map */}
-            {imageryType === 'ndvi' && stickers.map((sticker) => {
-              const { Icon, color } = getStickerIconComponent(sticker.type);
-              return (
-                <OverlayView
-                  key={sticker.id}
-                  position={{ lat: sticker.lat, lng: sticker.lng }}
-                  mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
-                >
-                  <div
-                    onClick={() => handleMarkerClick(sticker.id, sticker.type)}
-                    style={{
-                      position: 'absolute',
-                      transform: 'translate(-50%, -50%)',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: '48px',
-                      height: '48px',
-                      backgroundColor: 'white',
-                      borderRadius: '50%',
-                      boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
-                    }}
-                  >
-                    <Icon size={32} color={color} />
-                  </div>
-                </OverlayView>
-              );
-            })}
-          </GoogleMap>
+      )} */}
+      <section className={composedClass}>
+        {showOpacityControl && (
+          <label className="mb-2 flex items-center gap-3 text-xs text-slate-400">
+            <span>Overlay opacity</span>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={overlayOpacity}
+              onChange={(e) => onOverlayOpacityChange?.(Number(e.target.value))}
+              disabled={imageryStatus !== 'success'}
+              className="flex-1 accent-amber-400 disabled:opacity-50"
+            />
+            <span className="tabular-nums text-slate-500">{Math.round(overlayOpacity * 100)}%</span>
+          </label>
         )}
-      </div>
-    </section>
+
+          <div className="flex flex-1 items-center justify-center">
+          {/* Show error screen if imagery failed to load */}
+          {imageryStatus === 'error' ? (
+            <div className="flex flex-col items-center justify-center gap-4 text-slate-400" style={{ minHeight: '320px' }}>
+              {/* Satellite Icon (grayed out) */}
+              <div className="relative opacity-50">
+                <img
+                  src="/Settilite.png"
+                  alt="Satellite"
+                  className="h-32 w-32 object-contain grayscale"
+                />
+              </div>
+
+              {/* Error message */}
+              <div className="flex flex-col items-center gap-2 text-center">
+                <div className="flex items-center gap-2 text-red-400">
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span className="text-sm font-medium">
+                    {isSatelliteDataError
+                      ? 'Satellite Could Not Retrieve Imagery'
+                      : 'Failed to Load Imagery'}
+                  </span>
+                </div>
+                <span className="text-xs opacity-75 max-w-xs">
+                  {isSatelliteDataError
+                    ? `No ${imageryLabel} data available for ${cityName} on ${date}. Try a different date or location.`
+                    : `Unable to load ${imageryLabel} imagery. Please check your connection and try again.`}
+                </span>
+              </div>
+            </div>
+          ) : loadError ? (
+            <div className="text-sm text-red-500">Error loading maps. Please check your connection.</div>
+          ) : !isLoaded || imageryStatus === 'loading' || imageryStatus === 'idle' || cntMapsLoaded < 2 ? (
+            <div className="flex flex-col items-center justify-center gap-4 text-slate-400" style={{ minHeight: '320px' }}>
+              {/* Satellite Image */}
+              <div className="relative">
+                <img
+                  src="/Settilite.png"
+                  alt="Satellite"
+                  className="h-32 w-32 animate-pulse object-contain"
+                />
+              </div>
+
+              {/* Loading text */}
+              <div className="flex flex-col items-center gap-2">
+                <div className="flex items-center gap-2">
+                  <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" className="opacity-25"/>
+                    <path fill="currentColor" className="opacity-75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                  </svg>
+                  <span className="text-sm font-medium">
+                    Connecting to LANDSAT 9 Satellite
+                  </span>
+                </div>
+                <span className="text-xs opacity-75">
+                  {!isLoaded ? 'Initializing map interface...' : `Retrieving ${imageryLabel} data...`}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <GoogleMap
+              mapContainerStyle={mapContainerStyle}
+              center={mapCenter}
+              zoom={mapZoom}
+              onClick={handleMapClick}
+              onLoad={(mapInstance) => setMap(mapInstance)}
+              onUnmount={() => setMap(null)}
+              onCenterChanged={handleCenterChanged}
+              onZoomChanged={handleZoomChanged}
+              options={{
+                streetViewControl: false,
+                mapTypeControl: true,
+                fullscreenControl: true,
+                zoomControl: true,
+                draggableCursor: placingMode ? 'crosshair' : 'default',
+                backgroundColor: 'transparent',
+                // Enable smooth animations and gestures
+                gestureHandling: 'greedy',
+                // Disable tilt for smoother 2D panning
+                tilt: 0,
+                styles: [
+                  // Make all geometry transparent/invisible
+                  { elementType: 'geometry', stylers: [{ visibility: 'off' }] },
+                  { elementType: 'geometry.fill', stylers: [{ visibility: 'off' }] },
+                  { elementType: 'geometry.stroke', stylers: [{ visibility: 'off' }] },
+
+                  // Keep labels visible with good contrast
+                  { elementType: 'labels.text.stroke', stylers: [{ color: '#000000', weight: 3 }] },
+                  { elementType: 'labels.text.fill', stylers: [{ color: '#ffffff' }] },
+
+                  // Roads - semi-transparent overlay
+                  { featureType: 'road', elementType: 'geometry', stylers: [{ visibility: 'on', color: '#ffffff' }] },
+                  { featureType: 'road', elementType: 'geometry.fill', stylers: [{ visibility: 'on', color: '#ffffff', lightness: 100 }] },
+                  { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ visibility: 'on', color: '#000000', weight: 0.5 }] },
+                  { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#ffffff' }] },
+                  { featureType: 'road', elementType: 'labels.text.stroke', stylers: [{ color: '#000000', weight: 2 }] },
+
+                  // Highways - slightly more visible
+                  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ visibility: 'on', color: '#ffeb3b', lightness: 50 }] },
+                  { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ visibility: 'on', color: '#000000', weight: 1 }] },
+
+                  // Water - keep transparent
+                  { featureType: 'water', elementType: 'geometry', stylers: [{ visibility: 'off' }] },
+                  { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#ffffff' }] },
+                  { featureType: 'water', elementType: 'labels.text.stroke', stylers: [{ color: '#000000', weight: 2 }] },
+
+                  // Administrative boundaries
+                  { featureType: 'administrative', elementType: 'geometry.stroke', stylers: [{ visibility: 'on', color: '#ffffff', weight: 1 }] },
+                ],
+              }}
+            >
+
+              {/* Sticker Markers - Only show on NDVI map */}
+              {imageryType === 'ndvi' && stickers.map((sticker) => {
+                const { Icon, color } = getStickerIconComponent(sticker.type);
+                return (
+                  <OverlayView
+                    key={sticker.id}
+                    position={{ lat: sticker.lat, lng: sticker.lng }}
+                    mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
+                  >
+                    <div
+                      onClick={() => handleMarkerClick(sticker.id, sticker.type)}
+                      style={{
+                        position: 'absolute',
+                        transform: 'translate(-50%, -50%)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '48px',
+                        height: '48px',
+                        backgroundColor: 'white',
+                        borderRadius: '50%',
+                        boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                      }}
+                    >
+                      <Icon size={32} color={color} />
+                    </div>
+                  </OverlayView>
+                );
+              })}
+            </GoogleMap>
+          )}
+        </div>
+      </section>
+    </div>
   );
 };
 

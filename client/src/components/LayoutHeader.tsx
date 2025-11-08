@@ -28,7 +28,7 @@ const LayoutHeader = ({ city, date, onCitySubmit, onDateChange }: LayoutHeaderPr
     'rounded-sm bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500 active:bg-blue-700';
 
   return (
-    <header className="flex items-center gap-6 border-b border-slate-600 bg-slate-800 px-6 py-4 shadow-md">
+    <header className="flex items-center gap-6 border-b border-slate-600 bg-slate-800 px-6 py-2 shadow-md">
 
       {/* Logo + Title Section */}
       <div className="flex items-center gap-3">
