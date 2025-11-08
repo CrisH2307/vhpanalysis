@@ -257,9 +257,6 @@ const App = () => {
                   sharedMapZoom={sharedMapZoom}
                   onMapCenterChange={setSharedMapCenter}
                   onMapZoomChange={setSharedMapZoom}
-                  simulatedImagery={simulatedHeatmap}
-                  simulatedBoundingBox={simulatedBoundingBox}
-                  simulatedImageDate={simulatedImageDate}
                 />
               </div>
             </div>
