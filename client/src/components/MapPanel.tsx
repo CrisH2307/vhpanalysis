@@ -1,5 +1,5 @@
 import { GoogleMap, useJsApiLoader, Marker, GroundOverlay } from '@react-google-maps/api';
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 type Sticker = {
   id: string;
@@ -23,6 +23,9 @@ type MapPanelProps = {
   onStickerPlaced: (lat: number, lng: number, type: 'tree' | 'house') => void;
   onClearAll: () => void;
   shouldClearAll: boolean;
+  sharedView: { center: google.maps.LatLngLiteral; zoom: number };
+  onViewChange?: (view: { center: google.maps.LatLngLiteral; zoom: number }) => void;
+  allowViewBroadcast?: boolean;
 };
 
 // Google Maps API Key
@@ -57,6 +60,9 @@ const MapPanel = ({
   onStickerPlaced,
   shouldClearAll,
   onClearAll,
+  sharedView,
+  onViewChange,
+  allowViewBroadcast = false,
 }: MapPanelProps) => {
   const [mapCenter, setMapCenter] = useState(CITY_COORDINATES[cityName] || CITY_COORDINATES.Toronto);
   const [mapZoom, setMapZoom] = useState(11);
@@ -122,7 +128,8 @@ const MapPanel = ({
           const [lon_min, lat_min, lon_max, lat_max] = imageryResponse.bounding_box;
           const centerLat = (lat_min + lat_max) / 2;
           const centerLng = (lon_min + lon_max) / 2;
-          setMapCenter({ lat: centerLat, lng: centerLng });
+          const newCenter = { lat: centerLat, lng: centerLng };
+          setMapCenter(newCenter);
 
           const latDiff = lat_max - lat_min;
           const lngDiff = lon_max - lon_min;
@@ -135,7 +142,16 @@ const MapPanel = ({
           else if (maxDiff < 1) newZoom = 10;
           else newZoom = 9;
 
-          setMapZoom(newZoom + 0.5);
+          const adjustedZoom = newZoom + 0.5;
+          setMapZoom(adjustedZoom);
+
+          if (allowViewBroadcast && onViewChange) {
+            console.log(`[MapPanel:${imageryType}] Updating shared view from imagery bounds`, {
+              center: newCenter,
+              zoom: adjustedZoom,
+            });
+            onViewChange({ center: newCenter, zoom: adjustedZoom });
+          }
         }
       } catch (error) {
         if (controller.signal.aborted) return;
@@ -147,7 +163,7 @@ const MapPanel = ({
 
     fetchImagery();
     return () => controller.abort();
-  }, [cityName, date, imageryType, imageryLabel]);
+  }, [cityName, date, imageryType, imageryLabel, allowViewBroadcast, onViewChange]);
 
   // Handle map click to place or remove sticker
   const handleMapClick = (e: google.maps.MapMouseEvent) => {
@@ -181,6 +197,33 @@ const MapPanel = ({
   };
 
   const composedClass = className ? `${baseClass} ${className}` : baseClass;
+
+  const isSyncingRef = useRef(false);
+
+  const handleMapLoad = (map: google.maps.Map) => {
+    if (!allowViewBroadcast || !onViewChange) {
+      return;
+    }
+
+    map.addListener('idle', () => {
+      if (isSyncingRef.current) {
+        isSyncingRef.current = false;
+        return;
+      }
+      const center = map.getCenter()?.toJSON() ?? sharedView.center;
+      const zoom = map.getZoom() ?? sharedView.zoom;
+      console.log(`[MapPanel:${imageryType}] User moved map, broadcasting`, { center, zoom });
+      onViewChange({ center, zoom });
+    });
+  };
+
+  // Shared view handling 
+  useEffect(() => {
+    isSyncingRef.current = true;
+    setMapCenter(sharedView.center);
+    setMapZoom(sharedView.zoom);
+    console.log(`[MapPanel:${imageryType}] Synced to shared view`, sharedView);
+  }, [sharedView, imageryType]);
 
   return (
     <section className={composedClass}>
@@ -221,6 +264,7 @@ const MapPanel = ({
             center={mapCenter}
             zoom={mapZoom}
             onClick={handleMapClick}
+            onLoad={handleMapLoad}
             options={{
               streetViewControl: false,
               mapTypeControl: true,

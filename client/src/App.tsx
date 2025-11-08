@@ -11,6 +11,9 @@ const App = () => {
   const [placingMode, setPlacingMode] = useState<'tree' | 'house' | 'removeTree' | 'removeHouse' | null>(null);
   const [shouldClearAll, setShouldClearAll] = useState(false);
 
+  type ViewState = { center: google.maps.LatLngLiteral; zoom: number };
+  const [view, setView] = useState<ViewState>({ center: { lat: 43.6532, lng: -79.3832 }, zoom: 11,});
+    
   const handleCitySubmit = (city: string) => {
     setSelectedCity(city);
     console.log('City changed to:', city);
@@ -63,6 +66,11 @@ const App = () => {
           onStickerPlaced={handleStickerPlaced}
           shouldClearAll={shouldClearAll}
           onClearAll={handleClearAllComplete}
+          // Symmetric view for map 1 to map 2
+          sharedView={view}
+          onViewChange={setView}
+          allowViewBroadcast
+
         />
         <MapPanel
           cityName={selectedCity}
@@ -72,6 +80,10 @@ const App = () => {
           onStickerPlaced={handleStickerPlaced}
           shouldClearAll={shouldClearAll}
           onClearAll={handleClearAllComplete}
+          // Symmetric view for map 1 to map 2
+          sharedView={view}
+          onViewChange={setView}
+          allowViewBroadcast
         />
         <ScorePanel />
       </main>
