@@ -60,11 +60,6 @@ const LayoutHeader = ({ city, date, onCitySubmit, onDateChange }: LayoutHeaderPr
             className={inputClass}
           />
         </form>
-
-        <button type="button" onClick={() => onCitySubmit(searchValue.trim())} className={activeButtonClass}>
-          Search
-        </button>
-
         {/* Modern Date Picker */}
         <div className="relative flex items-center rounded-md bg-slate-700 focus-within:ring-2 focus-within:ring-blue-500">
           {/* Calendar SVG */}
@@ -89,6 +84,11 @@ const LayoutHeader = ({ city, date, onCitySubmit, onDateChange }: LayoutHeaderPr
             className="w-full bg-transparent pl-10 pr-3 py-2 text-slate-200 placeholder:text-slate-400 focus:outline-none rounded-md"
           />
         </div>
+
+        <button type="button" onClick={() => onCitySubmit(searchValue.trim())} className={activeButtonClass}>
+          Search
+        </button>
+        
       </div>
     </header>
   );
