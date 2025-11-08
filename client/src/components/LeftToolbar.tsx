@@ -2,9 +2,17 @@ type LeftToolbarProps = {
   placingMode: 'tree' | 'house' | 'removeTree' | 'removeHouse' | null;
   onSetPlacingMode: (mode: 'tree' | 'house' | 'removeTree' | 'removeHouse' | null) => void;
   onClearAll: () => void;
+  simulationEnabled: boolean;
+  onToggleSimulation: () => void;
 };
 
-const LeftToolbar = ({ placingMode, onSetPlacingMode, onClearAll }: LeftToolbarProps) => {
+const LeftToolbar = ({
+  placingMode,
+  onSetPlacingMode,
+  onClearAll,
+  simulationEnabled,
+  onToggleSimulation,
+}: LeftToolbarProps) => {
   const buttonClass =
     'group relative flex h-12 w-12 items-center justify-center rounded-sm bg-slate-700 text-slate-300 transition-all hover:bg-slate-600 hover:text-white active:bg-slate-500';
 
@@ -102,6 +110,18 @@ const LeftToolbar = ({ placingMode, onSetPlacingMode, onClearAll }: LeftToolbarP
             strokeWidth={2}
             d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
           />
+        </svg>
+      </button>
+      <div className="mt-3 h-px w-10 bg-slate-600" />
+      <button
+        type="button"
+        aria-label="Toggle simulation"
+        className={simulationEnabled ? activeButtonClass : buttonClass}
+        title="Toggle simulation view"
+        onClick={onToggleSimulation}
+      >
+        <svg className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M8 5v14l11-7z" />
         </svg>
       </button>
     </aside>
