@@ -1,45 +1,94 @@
-import React from 'react';
-
-const cities = ['Toronto', 'Vancouver', 'Montreal'];
-
-const labelClass =
-  'flex flex-col gap-1 text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-slate-500';
-
-const inputClass =
-  'min-w-[160px] rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100';
+import React, { useEffect, useState } from 'react';
 
 type LayoutHeaderProps = {
-  selectedCity: string;
-  onCityChange: (city: string) => void;
+  city: string;
+  date: string;
+  onCitySubmit: (city: string) => void;
+  onDateChange: (date: string) => void;
 };
 
-const LayoutHeader = ({ selectedCity, onCityChange }: LayoutHeaderProps) => {
+const LayoutHeader = ({ city, date, onCitySubmit, onDateChange }: LayoutHeaderProps) => {
+  const [searchValue, setSearchValue] = useState(city);
+
+  useEffect(() => {
+    setSearchValue(city);
+  }, [city]);
+
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const nextCity = searchValue.trim();
+    if (nextCity) {
+      onCitySubmit(nextCity);
+    }
+  };
+
+  const inputClass =
+    'w-full bg-transparent text-slate-200 placeholder:text-slate-400 pl-10 pr-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500';
+  const activeButtonClass =
+    'rounded-sm bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500 active:bg-blue-700';
+
   return (
-    <header className="flex items-center gap-6 border-b border-slate-200 bg-white px-8 py-4">
-      <div className="text-base font-bold tracking-[0.2em] text-slate-800">LOGO</div>
-      <div className="ml-auto flex flex-wrap items-end gap-4">
-        <label className={labelClass}>
-          <span>Input City</span>
-          <select
-            className={inputClass}
-            value={selectedCity}
-            onChange={(e) => onCityChange(e.target.value)}
-          >
-            {cities.map((city) => (
-              <option key={city} value={city}>{city}</option>
-            ))}
-          </select>
-        </label>
-        <label className={labelClass}>
-          <span>Modify Date</span>
-          <input type="date" className={inputClass} />
-        </label>
-        <button
-          type="button"
-          className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-blue-600 transition hover:bg-blue-50"
+    <header className="flex items-center gap-6 border-b border-slate-600 bg-slate-800 px-6 py-4 shadow-md">
+      <div className="text-lg font-bold tracking-wider text-white">LOGO</div>
+
+      <div className="ml-auto flex flex-wrap items-center gap-4">
+        {/* Modern Search Bar */}
+        <form
+          onSubmit={handleSubmit}
+          className="relative flex w-64 items-center rounded-md bg-slate-700 focus-within:ring-2 focus-within:ring-blue-500"
         >
-          Default Date
+          {/* Search SVG */}
+          <svg
+            className="absolute left-3 h-4 w-4 text-slate-400"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M21 21l-4.35-4.35M10 18a8 8 0 100-16 8 8 0 000 16z"
+            />
+          </svg>
+          <input
+            type="text"
+            placeholder="Search city..."
+            value={searchValue}
+            onChange={(e) => setSearchValue(e.target.value)}
+            className={inputClass}
+          />
+        </form>
+
+        <button type="button" onClick={() => onCitySubmit(searchValue.trim())} className={activeButtonClass}>
+          Search
         </button>
+
+        {/* Modern Date Picker */}
+        <div className="relative flex items-center rounded-md bg-slate-700 focus-within:ring-2 focus-within:ring-blue-500">
+          {/* Calendar SVG */}
+          <svg
+            className="absolute left-3 h-4 w-4 text-slate-400"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+            />
+          </svg>
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => onDateChange(e.target.value)}
+            className="w-full bg-transparent pl-10 pr-3 py-2 text-slate-200 placeholder:text-slate-400 focus:outline-none rounded-md"
+          />
+        </div>
       </div>
     </header>
   );

@@ -12,18 +12,22 @@ import requests
 import tempfile
 import xarray as xr
 from geopy.geocoders import Nominatim
+from typing import Optional, Tuple
+
 from pystac_client import Client
+from rasterio.errors import RasterioIOError
 from rasterio.session import AWSSession
 from rasterio.windows import from_bounds
 from rasterio.warp import transform_bounds
+
+from .session_store import store_session_data
 
 catalog = Client.open(
     "https://planetarycomputer.microsoft.com/api/stac/v1",
     modifier=pc.sign_inplace
 )
 
-geolocator = Nominatim(user_agent="city_bbox_lookup", timeout=10)
-
+geolocator = Nominatim(user_agent="city_bbox_lookup", timeout=None)
 def geocode_city(city):
     location = geolocator.geocode(city, exactly_one=True)
 
@@ -56,37 +60,42 @@ def search_landsat_items(date, bbox):
     return items
 
 
-def crop_asset(asset_href, lon_min, lat_min, lon_max, lat_max):
-    with rasterio.open(asset_href) as src:
-        print("Loading data...")
+def crop_asset(asset_href, lon_min, lat_min, lon_max, lat_max, verbose=True):
+    try:
+        with rasterio.open(asset_href) as src:
+            if verbose:
+                print("Loading data...")
 
-        bbox_src = transform_bounds(
-            "EPSG:4326",
-            src.crs,
-            lon_min,
-            lat_min,
-            lon_max,
-            lat_max,
-            densify_pts=21,
-        )
+            bbox_src = transform_bounds(
+                "EPSG:4326",
+                src.crs,
+                lon_min,
+                lat_min,
+                lon_max,
+                lat_max,
+                densify_pts=21,
+            )
 
-        window = from_bounds(*bbox_src, transform=src.transform)
-        window = window.round_offsets().round_lengths()
+            window = from_bounds(*bbox_src, transform=src.transform)
+            window = window.round_offsets().round_lengths()
 
-        data = src.read(1, window=window).astype(float)
-        profile = src.profile
-        profile.update(
-            {
-                "height": data.shape[0],
-                "width": data.shape[1],
-                "transform": src.window_transform(window),
-            }
-        )
+            data = src.read(1, window=window).astype(float)
+            profile = src.profile
+            profile.update(
+                {
+                    "height": data.shape[0],
+                    "width": data.shape[1],
+                    "transform": src.window_transform(window),
+                }
+            )
+    except RasterioIOError as exc:
+        if verbose:
+            print(f"Failed to open asset {asset_href}: {exc}")
+        return None, None
 
     return data, profile
 
-
-def load_band(item, band_substring, bbox, apply_scale=False, nodata_value=0):
+def load_band(item, band_substring, bbox, apply_scale=False, nodata_value=0, verbose=True):
     lon_min, lat_min, lon_max, lat_max = bbox
     asset = next(
         (asset for key, asset in item.assets.items() if band_substring in key), None
@@ -95,7 +104,11 @@ def load_band(item, band_substring, bbox, apply_scale=False, nodata_value=0):
     if asset is None:
         return None, None, None
 
-    data, profile = crop_asset(asset.href, lon_min, lat_min, lon_max, lat_max)
+    signed_asset = pc.sign(asset)
+    data, profile = crop_asset(signed_asset.href, lon_min, lat_min, lon_max, lat_max, verbose=verbose)
+
+    if data is None or profile is None:
+        return None, None, None
 
     inferred_nodata = nodata_value
     if inferred_nodata is None:
@@ -119,7 +132,48 @@ def load_band(item, band_substring, bbox, apply_scale=False, nodata_value=0):
     return data, profile, asset
 
 
-def get_heat_map(date, city):
+def _extract_thermal_constants(asset):
+    band_info = asset.extra_fields.get("raster:bands", [{}])
+    band_meta = band_info[0] if band_info else {}
+    scale = band_meta.get("scale")
+    offset = band_meta.get("offset")
+    k1 = (
+        band_meta.get("thermal:K1")
+        or band_meta.get("therm:K1")
+        or band_meta.get("k1_constant")
+    )
+    k2 = (
+        band_meta.get("thermal:K2")
+        or band_meta.get("therm:K2")
+        or band_meta.get("k2_constant")
+    )
+    return scale, offset, k1, k2
+
+
+def convert_to_celsius(asset, thermal_dn):
+    scale, offset, k1, k2 = _extract_thermal_constants(asset)
+
+    radiance = thermal_dn.astype(float)
+
+    if scale is not None:
+        radiance = radiance * scale
+    if offset is not None:
+        radiance = radiance + offset
+
+    with np.errstate(divide="ignore", invalid="ignore"):
+        if k1 and k2 and np.any(radiance > 0):
+            adjusted = np.where(radiance > 0, radiance, np.nan)
+            temp_kelvin = k2 / np.log((k1 / adjusted) + 1)
+        else:
+            temp_kelvin = radiance
+
+    temp_celsius = temp_kelvin - 273.15
+    temp_celsius = np.where(np.isfinite(temp_celsius), temp_celsius, np.nan)
+
+    return temp_celsius
+
+
+def get_heat_map(date, city, session_id: Optional[str] = None):
     bbox = geocode_city(city)
     items = search_landsat_items(date, bbox)
 
@@ -136,9 +190,14 @@ def get_heat_map(date, city):
         if np.isnan(thermal_dn).any():
             continue
 
-        thermal_k = thermal_dn * 0.00341802 + 149.0
-        thermal_c = thermal_k - 273.15
+        thermal_c = convert_to_celsius(asset, thermal_dn)
+
+        if np.isnan(thermal_c).any():
+            continue
+
         asset_date = item.properties["datetime"].split("T")[0]
+
+        store_session_data(session_id, "heat_map", thermal_c, asset_date, bbox)
 
         fig, ax = plt.subplots(figsize=(10, 8))
         ax.imshow(thermal_c, cmap="inferno")
@@ -163,7 +222,7 @@ def get_heat_map(date, city):
     return None, None, None
 
 
-def get_ndvi_map(date, city):
+def get_ndvi_map(date, city, session_id: Optional[str] = None):
     bbox = geocode_city(city)
     items = search_landsat_items(date, bbox)
 
@@ -190,11 +249,14 @@ def get_ndvi_map(date, city):
         ndvi = np.empty_like(nir, dtype=float)
         ndvi[:] = np.nan
         ndvi[~mask] = (nir[~mask] - red[~mask]) / ndvi_denominator[~mask]
+        ndvi = np.clip(ndvi, -1.0, 1.0)
 
         if np.isnan(ndvi).any():
             continue
 
         asset_date = item.properties["datetime"].split("T")[0]
+
+        store_session_data(session_id, "ndvi_map", ndvi, asset_date, bbox)
 
         fig, ax = plt.subplots(figsize=(10, 8))
         ax.imshow(ndvi, cmap="RdYlGn", vmin=-1, vmax=1)

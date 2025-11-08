@@ -1,7 +1,7 @@
 import base64
-from typing import Tuple, Optional
+from typing import Optional, Tuple
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, session
 
 from ..imagery import sat_extract
 
@@ -19,7 +19,12 @@ def _validate_query_params() -> Tuple[Optional[str], Optional[str]]:
     return city, date
 
 
-def _build_response(image_bytes: bytes, image_date: str, bbox: Tuple[float, float, float, float]):
+def _build_response(
+    image_bytes: bytes,
+    image_date: str,
+    bbox: Tuple[float, float, float, float],
+    session_id: Optional[str],
+):
     encoded_image = base64.b64encode(image_bytes).decode("utf-8")
 
     return jsonify(
@@ -27,6 +32,7 @@ def _build_response(image_bytes: bytes, image_date: str, bbox: Tuple[float, floa
             "image": encoded_image,
             "image_date": image_date,
             "bounding_box": list(bbox),
+            "session_id": session_id,
         }
     )
 
@@ -38,12 +44,14 @@ def get_ndvi():
     if not city or not date:
         return jsonify({"error": "Missing required query parameters: city, date"}), 400
 
-    image_bytes, image_date, bbox = sat_extract.get_ndvi_map(date, city)
+    session_id = session.get("session_id")
+
+    image_bytes, image_date, bbox = sat_extract.get_ndvi_map(date, city, session_id=session_id)
 
     if image_bytes is None:
         return jsonify({"error": "No valid NDVI imagery found"}), 404
 
-    return _build_response(image_bytes, image_date, bbox)
+    return _build_response(image_bytes, image_date, bbox, session_id)
 
 
 @imagery_bp.route("/heat", methods=["GET"])
@@ -53,10 +61,12 @@ def get_heat():
     if not city or not date:
         return jsonify({"error": "Missing required query parameters: city, date"}), 400
 
-    image_bytes, image_date, bbox = sat_extract.get_heat_map(date, city)
+    session_id = session.get("session_id")
+
+    image_bytes, image_date, bbox = sat_extract.get_heat_map(date, city, session_id=session_id)
 
     if image_bytes is None:
         return jsonify({"error": "No valid thermal imagery found"}), 404
 
-    return _build_response(image_bytes, image_date, bbox)
+    return _build_response(image_bytes, image_date, bbox, session_id)
 
