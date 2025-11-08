@@ -26,7 +26,7 @@ catalog = Client.open(
     modifier=pc.sign_inplace
 )
 
-geolocator = Nominatim(user_agent="city_bbox_lookup", timeout=10)
+geolocator = Nominatim(user_agent="city_bbox_lookup", timeout=None)
 def geocode_city(city):
     location = geolocator.geocode(city, exactly_one=True)
 
@@ -59,9 +59,10 @@ def search_landsat_items(date, bbox):
     return items
 
 
-def crop_asset(asset_href, lon_min, lat_min, lon_max, lat_max):
+def crop_asset(asset_href, lon_min, lat_min, lon_max, lat_max, verbose=True):
     with rasterio.open(asset_href) as src:
-        print("Loading data...")
+        if verbose:
+            print("Loading data...")
 
         bbox_src = transform_bounds(
             "EPSG:4326",
@@ -88,8 +89,7 @@ def crop_asset(asset_href, lon_min, lat_min, lon_max, lat_max):
 
     return data, profile
 
-
-def load_band(item, band_substring, bbox, apply_scale=False, nodata_value=0):
+def load_band(item, band_substring, bbox, apply_scale=False, nodata_value=0, verbose=True):
     lon_min, lat_min, lon_max, lat_max = bbox
     asset = next(
         (asset for key, asset in item.assets.items() if band_substring in key), None
@@ -98,7 +98,7 @@ def load_band(item, band_substring, bbox, apply_scale=False, nodata_value=0):
     if asset is None:
         return None, None, None
 
-    data, profile = crop_asset(asset.href, lon_min, lat_min, lon_max, lat_max)
+    data, profile = crop_asset(asset.href, lon_min, lat_min, lon_max, lat_max, verbose=verbose)
 
     inferred_nodata = nodata_value
     if inferred_nodata is None:
@@ -122,6 +122,47 @@ def load_band(item, band_substring, bbox, apply_scale=False, nodata_value=0):
     return data, profile, asset
 
 
+def _extract_thermal_constants(asset):
+    band_info = asset.extra_fields.get("raster:bands", [{}])
+    band_meta = band_info[0] if band_info else {}
+    scale = band_meta.get("scale")
+    offset = band_meta.get("offset")
+    k1 = (
+        band_meta.get("thermal:K1")
+        or band_meta.get("therm:K1")
+        or band_meta.get("k1_constant")
+    )
+    k2 = (
+        band_meta.get("thermal:K2")
+        or band_meta.get("therm:K2")
+        or band_meta.get("k2_constant")
+    )
+    return scale, offset, k1, k2
+
+
+def convert_to_celsius(asset, thermal_dn):
+    scale, offset, k1, k2 = _extract_thermal_constants(asset)
+
+    radiance = thermal_dn.astype(float)
+
+    if scale is not None:
+        radiance = radiance * scale
+    if offset is not None:
+        radiance = radiance + offset
+
+    with np.errstate(divide="ignore", invalid="ignore"):
+        if k1 and k2 and np.any(radiance > 0):
+            adjusted = np.where(radiance > 0, radiance, np.nan)
+            temp_kelvin = k2 / np.log((k1 / adjusted) + 1)
+        else:
+            temp_kelvin = radiance
+
+    temp_celsius = temp_kelvin - 273.15
+    temp_celsius = np.where(np.isfinite(temp_celsius), temp_celsius, np.nan)
+
+    return temp_celsius
+
+
 def get_heat_map(date, city, session_id: Optional[str] = None):
     bbox = geocode_city(city)
     items = search_landsat_items(date, bbox)
@@ -139,8 +180,11 @@ def get_heat_map(date, city, session_id: Optional[str] = None):
         if np.isnan(thermal_dn).any():
             continue
 
-        thermal_k = thermal_dn * 0.00341802 + 149.0
-        thermal_c = thermal_k - 273.15
+        thermal_c = convert_to_celsius(asset, thermal_dn)
+
+        if np.isnan(thermal_c).any():
+            continue
+
         asset_date = item.properties["datetime"].split("T")[0]
 
         store_session_data(session_id, "heat_map", thermal_c, asset_date, bbox)
@@ -195,6 +239,7 @@ def get_ndvi_map(date, city, session_id: Optional[str] = None):
         ndvi = np.empty_like(nir, dtype=float)
         ndvi[:] = np.nan
         ndvi[~mask] = (nir[~mask] - red[~mask]) / ndvi_denominator[~mask]
+        ndvi = np.clip(ndvi, -1.0, 1.0)
 
         if np.isnan(ndvi).any():
             continue
