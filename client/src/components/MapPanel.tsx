@@ -27,6 +27,10 @@ type MapPanelProps = {
   sharedMapZoom?: number;
   onMapCenterChange?: (center: { lat: number; lng: number }) => void;
   onMapZoomChange?: (zoom: number) => void;
+  onStickerChange?: (count: number) => void;
+  overlayOpacity?: number;
+  onOverlayOpacityChange?: (value: number) => void;
+  showOpacityControl?: boolean;
 };
 
 // Google Maps API Key
@@ -67,6 +71,10 @@ const MapPanel = ({
   sharedMapZoom,
   onMapCenterChange,
   onMapZoomChange,
+  onStickerChange,
+  overlayOpacity = 0.6,
+  onOverlayOpacityChange,
+  showOpacityControl = false,
 }: MapPanelProps) => {
   const [mapCenter, setMapCenter] = useState(sharedMapCenter || CITY_COORDINATES[cityName] || CITY_COORDINATES.Toronto);
   const [mapZoom, setMapZoom] = useState(sharedMapZoom || 11);
@@ -102,11 +110,13 @@ const MapPanel = ({
       private bounds: google.maps.LatLngBounds;
       private image: string;
       private div: HTMLDivElement | null = null;
+      private opacity: number;
 
-      constructor(bounds: google.maps.LatLngBounds, image: string) {
+      constructor(bounds: google.maps.LatLngBounds, image: string, opacity: number) {
         super();
         this.bounds = bounds;
         this.image = image;
+        this.opacity = opacity;
       }
 
       onAdd() {
@@ -114,7 +124,7 @@ const MapPanel = ({
         this.div.style.borderStyle = 'none';
         this.div.style.borderWidth = '0px';
         this.div.style.position = 'absolute';
-        this.div.style.opacity = '0.6';
+        this.div.style.opacity = String(this.opacity);
 
         const img = document.createElement('img');
         img.src = `data:image/png;base64,${this.image}`;
@@ -150,13 +160,13 @@ const MapPanel = ({
       }
     }
 
-    const overlay = new ImageryOverlay(bounds, imageryData.image);
+    const overlay = new ImageryOverlay(bounds, imageryData.image, overlayOpacity);
     overlay.setMap(map);
 
     return () => {
       overlay.setMap(null);
     };
-  }, [map, imageryData]);
+  }, [map, imageryData, overlayOpacity]);
 
   // Human-readable label for imagery type
   const imageryLabel = imageryType === 'heat' ? 'LST (Land Surface Temperature)' : imageryType?.toUpperCase();
@@ -360,6 +370,12 @@ const MapPanel = ({
 
   const composedClass = className ? `${baseClass} ${className}` : baseClass;
 
+  useEffect(() => {
+    if (imageryType === 'ndvi') {
+      onStickerChange?.(stickers.length);
+    }
+  }, [stickers, imageryType, onStickerChange]);
+
   // Check if error is about missing thermal imagery
   const isSatelliteDataError = imageryError?.includes('No valid thermal imagery found') ||
                                 imageryError?.includes('No valid ndvi imagery found') ||
@@ -373,8 +389,24 @@ const MapPanel = ({
           ✓ {imageryLabel} imagery loaded ({imageryData.image_date})
         </div>
       )}
+      {showOpacityControl && (
+        <label className="mb-2 flex items-center gap-3 text-xs text-slate-400">
+          <span>Overlay opacity</span>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={overlayOpacity}
+            onChange={(e) => onOverlayOpacityChange?.(Number(e.target.value))}
+            disabled={imageryStatus !== 'success'}
+            className="flex-1 accent-amber-400 disabled:opacity-50"
+          />
+          <span className="tabular-nums text-slate-500">{Math.round(overlayOpacity * 100)}%</span>
+        </label>
+      )}
 
-      <div className="flex flex-1 items-center justify-center">
+        <div className="flex flex-1 items-center justify-center">
         {/* Show error screen if imagery failed to load */}
         {imageryStatus === 'error' ? (
           <div className="flex flex-col items-center justify-center gap-4 text-slate-400" style={{ minHeight: '320px' }}>
