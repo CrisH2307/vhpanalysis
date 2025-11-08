@@ -1,6 +1,13 @@
+import * as GiIcons from 'react-icons/gi';
+import * as MdIcons from 'react-icons/md';
+import * as IoIcons from 'react-icons/io';
+
+type StickerType = 'tree' | 'shrub' | 'grass' | 'building' | 'road' | 'waterbody';
+type PlacingMode = StickerType | `remove${Capitalize<StickerType>}` | null;
+
 type LeftToolbarProps = {
-  placingMode: 'tree' | 'house' | 'removeTree' | 'removeHouse' | null;
-  onSetPlacingMode: (mode: 'tree' | 'house' | 'removeTree' | 'removeHouse' | null) => void;
+  placingMode: PlacingMode;
+  onSetPlacingMode: (mode: PlacingMode) => void;
   onClearAll: () => void;
   simulationEnabled: boolean;
   onToggleSimulation: () => void;
@@ -14,119 +21,197 @@ const LeftToolbar = ({
   onToggleSimulation,
 }: LeftToolbarProps) => {
   const buttonClass =
-    'group relative flex h-12 w-12 items-center justify-center rounded-sm bg-slate-700 text-slate-300 transition-all hover:bg-slate-600 hover:text-white active:bg-slate-500';
+    'flex h-12 w-12 items-center justify-center rounded-lg bg-slate-700 text-slate-300 transition-all hover:bg-slate-600 hover:text-white active:scale-95';
 
   const activeButtonClass =
-    'group relative flex h-12 w-12 items-center justify-center rounded-sm bg-blue-600 text-white transition-all hover:bg-blue-500 active:bg-blue-700';
+    'flex h-12 w-12 items-center justify-center rounded-lg bg-blue-600 text-white shadow-lg ring-2 ring-blue-400';
+
+  const GiPineTree = GiIcons.GiPineTree as React.ComponentType<{ className?: string }>;
+  const GiFlowerPot = GiIcons.GiFlowerPot as React.ComponentType<{ className?: string }>;
+  const GiGrass = GiIcons.GiGrass as React.ComponentType<{ className?: string }>;
+  const GiModernCity = GiIcons.GiModernCity as React.ComponentType<{ className?: string }>;
+  const GiRoad = GiIcons.GiRoad as React.ComponentType<{ className?: string }>;
+  const GiWaterDrop = GiIcons.GiWaterDrop as React.ComponentType<{ className?: string }>;
+  const MdClose = MdIcons.MdClose as React.ComponentType<{ className?: string }>;
+  const IoMdRefresh = IoIcons.IoMdRefresh as React.ComponentType<{ className?: string }>;
+  const IoMdPlay = IoIcons.IoMdPlay as React.ComponentType<{ className?: string }>;
+
 
   return (
-    <aside className="flex w-16 flex-col items-center gap-2 border-r border-slate-300 bg-slate-800 p-2 shadow-lg">
-      {/* Add Tree */}
-      <button
-        type="button"
-        aria-label="Add tree"
-        className={placingMode === 'tree' ? activeButtonClass : buttonClass}
-        title="Add tree"
-        onClick={() => onSetPlacingMode(placingMode === 'tree' ? null : 'tree')}
-      >
-        <svg className="h-8 w-8" viewBox="0 0 24 24" fill="currentColor">
-          {/* Tree */}
-          <path d="M12 2L8 8h2v2H7l-2 3h2v2H5l-2 3h7v6h4v-6h7l-2-3h-2v-2h2l-2-3h-3V8h2z" />
-          {/* Plus sign */}
-          <circle cx="19" cy="5" r="4" fill="#22c55e" stroke="white" strokeWidth="1" />
-          <path d="M19 3v4M17 5h4" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
-        </svg>
-      </button>
-
-      {/* Remove Tree */}
-      <button
-        type="button"
-        aria-label="Remove tree"
-        className={placingMode === 'removeTree' ? activeButtonClass : buttonClass}
-        title="Remove tree"
-        onClick={() => onSetPlacingMode(placingMode === 'removeTree' ? null : 'removeTree')}
-      >
-        <svg className="h-8 w-8" viewBox="0 0 24 24" fill="currentColor">
-          {/* Tree */}
-          <path d="M12 2L8 8h2v2H7l-2 3h2v2H5l-2 3h7v6h4v-6h7l-2-3h-2v-2h2l-2-3h-3V8h2z" />
-          {/* Minus sign */}
-          <circle cx="19" cy="5" r="4" fill="#ef4444" stroke="white" strokeWidth="1" />
-          <path d="M17 5h4" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
-        </svg>
-      </button>
-
-      {/* Add House */}
-      <button
-        type="button"
-        aria-label="Add house"
-        className={placingMode === 'house' ? activeButtonClass : buttonClass}
-        title="Add house"
-        onClick={() => onSetPlacingMode(placingMode === 'house' ? null : 'house')}
-      >
-        <svg className="h-8 w-8" viewBox="0 0 24 24" fill="currentColor">
-          {/* House */}
-          <path d="M12 3L4 9v12h16V9l-8-6zm0 2.3L18 10v9h-5v-6h-2v6H6v-9l6-4.7z" />
-          {/* Plus sign */}
-          <circle cx="19" cy="5" r="4" fill="#22c55e" stroke="white" strokeWidth="1" />
-          <path d="M19 3v4M17 5h4" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
-        </svg>
-      </button>
-
-      {/* Remove House */}
-      <button
-        type="button"
-        aria-label="Remove house"
-        className={placingMode === 'removeHouse' ? activeButtonClass : buttonClass}
-        title="Remove house"
-        onClick={() => onSetPlacingMode(placingMode === 'removeHouse' ? null : 'removeHouse')}
-      >
-        <svg className="h-8 w-8" viewBox="0 0 24 24" fill="currentColor">
-          {/* House */}
-          <path d="M12 3L4 9v12h16V9l-8-6zm0 2.3L18 10v9h-5v-6h-2v6H6v-9l6-4.7z" />
-          {/* Minus sign */}
-          <circle cx="19" cy="5" r="4" fill="#ef4444" stroke="white" strokeWidth="1" />
-          <path d="M17 5h4" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
-        </svg>
-      </button>
-
-      {/* Clear All */}
-      <button
-        type="button"
-        aria-label="Clear all"
-        className={buttonClass}
-        title="Clear all"
-        onClick={onClearAll}
-      >
-        <svg
-          className="h-6 w-6"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-          xmlns="http://www.w3.org/2000/svg"
+    <aside className="flex flex-col gap-3 border-r border-slate-300 bg-slate-800 p-3 shadow-lg overflow-y-auto">
+      {/* Tree Row */}
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          aria-label="Add tree"
+          className={placingMode === 'tree' ? activeButtonClass : buttonClass}
+          title="Add tree"
+          onClick={() => onSetPlacingMode(placingMode === 'tree' ? null : 'tree')}
         >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-          />
-        </svg>
-      </button>
-      <div className="mt-3 h-px w-10 bg-slate-600" />
-      <button
-        type="button"
-        aria-label="Toggle simulation"
-        className={simulationEnabled ? activeButtonClass : buttonClass}
-        title="Toggle simulation view"
-        onClick={onToggleSimulation}
-      >
-        <svg className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M8 5v14l11-7z" />
-        </svg>
-      </button>
-      
-      
+          <GiPineTree className="h-6 w-6 text-green-500" />
+        </button>
+        <button
+          type="button"
+          aria-label="Remove tree"
+          className={placingMode === 'removeTree' ? activeButtonClass : buttonClass}
+          title="Remove tree"
+          onClick={() => onSetPlacingMode(placingMode === 'removeTree' ? null : 'removeTree')}
+        >
+          <div className="relative">
+            <GiPineTree className="h-6 w-6 text-red-500" />
+            <MdClose className="absolute -right-1 -top-1 h-3 w-3 text-white bg-red-600 rounded-full" />
+          </div>
+        </button>
+      </div>
 
+      {/* Shrub Row */}
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          aria-label="Add shrub"
+          className={placingMode === 'shrub' ? activeButtonClass : buttonClass}
+          title="Add shrub"
+          onClick={() => onSetPlacingMode(placingMode === 'shrub' ? null : 'shrub')}
+        >
+          <GiFlowerPot className="h-6 w-6 text-green-400" />
+        </button>
+        <button
+          type="button"
+          aria-label="Remove shrub"
+          className={placingMode === 'removeShrub' ? activeButtonClass : buttonClass}
+          title="Remove shrub"
+          onClick={() => onSetPlacingMode(placingMode === 'removeShrub' ? null : 'removeShrub')}
+        >
+          <div className="relative">
+            <GiFlowerPot className="h-6 w-6 text-red-500" />
+            <MdClose className="absolute -right-1 -top-1 h-3 w-3 text-white bg-red-600 rounded-full" />
+          </div>
+        </button>
+      </div>
+
+      {/* Grass Row */}
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          aria-label="Add grass"
+          className={placingMode === 'grass' ? activeButtonClass : buttonClass}
+          title="Add grass"
+          onClick={() => onSetPlacingMode(placingMode === 'grass' ? null : 'grass')}
+        >
+          <GiGrass className="h-6 w-6 text-green-300" />
+        </button>
+        <button
+          type="button"
+          aria-label="Remove grass"
+          className={placingMode === 'removeGrass' ? activeButtonClass : buttonClass}
+          title="Remove grass"
+          onClick={() => onSetPlacingMode(placingMode === 'removeGrass' ? null : 'removeGrass')}
+        >
+          <div className="relative">
+            <GiGrass className="h-6 w-6 text-red-500" />
+            <MdClose className="absolute -right-1 -top-1 h-3 w-3 text-white bg-red-600 rounded-full" />
+          </div>
+        </button>
+      </div>
+
+      {/* Building Row */}
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          aria-label="Add building"
+          className={placingMode === 'building' ? activeButtonClass : buttonClass}
+          title="Add building"
+          onClick={() => onSetPlacingMode(placingMode === 'building' ? null : 'building')}
+        >
+          <GiModernCity className="h-6 w-6 text-slate-400" />
+        </button>
+        <button
+          type="button"
+          aria-label="Remove building"
+          className={placingMode === 'removeBuilding' ? activeButtonClass : buttonClass}
+          title="Remove building"
+          onClick={() => onSetPlacingMode(placingMode === 'removeBuilding' ? null : 'removeBuilding')}
+        >
+          <div className="relative">
+            <GiModernCity className="h-6 w-6 text-red-500" />
+            <MdClose className="absolute -right-1 -top-1 h-3 w-3 text-white bg-red-600 rounded-full" />
+          </div>
+        </button>
+      </div>
+
+      {/* Road Row */}
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          aria-label="Add road"
+          className={placingMode === 'road' ? activeButtonClass : buttonClass}
+          title="Add road"
+          onClick={() => onSetPlacingMode(placingMode === 'road' ? null : 'road')}
+        >
+          <GiRoad className="h-6 w-6 text-slate-500" />
+        </button>
+        <button
+          type="button"
+          aria-label="Remove road"
+          className={placingMode === 'removeRoad' ? activeButtonClass : buttonClass}
+          title="Remove road"
+          onClick={() => onSetPlacingMode(placingMode === 'removeRoad' ? null : 'removeRoad')}
+        >
+          <div className="relative">
+            <GiRoad className="h-6 w-6 text-red-500" />
+            <MdClose className="absolute -right-1 -top-1 h-3 w-3 text-white bg-red-600 rounded-full" />
+          </div>
+        </button>
+      </div>
+
+      {/* Waterbody Row */}
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          aria-label="Add waterbody"
+          className={placingMode === 'waterbody' ? activeButtonClass : buttonClass}
+          title="Add waterbody"
+          onClick={() => onSetPlacingMode(placingMode === 'waterbody' ? null : 'waterbody')}
+        >
+          <GiWaterDrop className="h-6 w-6 text-blue-500" />
+        </button>
+        <button
+          type="button"
+          aria-label="Remove waterbody"
+          className={placingMode === 'removeWaterbody' ? activeButtonClass : buttonClass}
+          title="Remove waterbody"
+          onClick={() => onSetPlacingMode(placingMode === 'removeWaterbody' ? null : 'removeWaterbody')}
+        >
+          <div className="relative">
+            <GiWaterDrop className="h-6 w-6 text-red-500" />
+            <MdClose className="absolute -right-1 -top-1 h-3 w-3 text-white bg-red-600 rounded-full" />
+          </div>
+        </button>
+      </div>
+
+      <div className="h-px w-full bg-slate-600" />
+
+      {/* Utility Buttons */}
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          aria-label="Clear all"
+          className={buttonClass}
+          title="Clear all"
+          onClick={onClearAll}
+        >
+          <IoMdRefresh className="h-6 w-6" />
+        </button>
+        <button
+          type="button"
+          aria-label="Toggle simulation"
+          className={simulationEnabled ? activeButtonClass : buttonClass}
+          title="Toggle simulation view"
+          onClick={onToggleSimulation}
+        >
+          <IoMdPlay className="h-6 w-6" />
+        </button>
+      </div>
     </aside>
   );
 };

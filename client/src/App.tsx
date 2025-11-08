@@ -1,23 +1,43 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import LayoutHeader from './components/LayoutHeader';
 import LeftToolbar from './components/LeftToolbar';
 import MapPanel from './components/MapPanel';
 import ScorePanel from './components/ScorePanel';
 
+type StickerType = 'tree' | 'shrub' | 'grass' | 'building' | 'road' | 'waterbody';
+type PlacingMode = StickerType | `remove${Capitalize<StickerType>}` | null;
 
 const App = () => {
   const [selectedCity, setSelectedCity] = useState('Brampton');
   const [selectedDate, setSelectedDate] = useState('2022-01-01');
-  const [placingMode, setPlacingMode] = useState<'tree' | 'house' | 'removeTree' | 'removeHouse' | null>(null);
+  const [placingMode, setPlacingMode] = useState<PlacingMode>(null);
   const [shouldClearAll, setShouldClearAll] = useState(false);
   const [simulationMode, setSimulationMode] = useState(false);
-  const [hasScenarioChanges, setHasScenarioChanges] = useState(false);
-  const [simulationMessage, setSimulationMessage] = useState<string | null>(null);
-  const [overlayOpacity, setOverlayOpacity] = useState(0.6);
 
   // Shared map state for synchronized panning and zooming
   const [sharedMapCenter, setSharedMapCenter] = useState<{ lat: number; lng: number } | undefined>(undefined);
   const [sharedMapZoom, setSharedMapZoom] = useState<number | undefined>(undefined);
+
+  // Three arrays to store sticker data: lat, lng, type
+  const [stickerLats, setStickerLats] = useState<number[]>([]);
+  const [stickerLngs, setStickerLngs] = useState<number[]>([]);
+  const [stickerTypes, setStickerTypes] = useState<StickerType[]>([]);
+
+  // State for simulated heatmap
+  const [simulatedHeatmap, setSimulatedHeatmap] = useState<string | null>(null);
+  const [simulatedBoundingBox, setSimulatedBoundingBox] = useState<number[] | null>(null);
+  const [simulatedImageDate, setSimulatedImageDate] = useState<string | null>(null);
+
+  // Log sticker arrays whenever they change
+  useEffect(() => {
+    if (stickerLats.length > 0) {
+      console.log('=== STICKER DATA ===');
+      console.log('Latitudes:', stickerLats);
+      console.log('Longitudes:', stickerLngs);
+      console.log('Types:', stickerTypes);
+      console.log('Total stickers:', stickerLats.length);
+    }
+  }, [stickerLats, stickerLngs, stickerTypes]);
 
   const handleCitySubmit = (city: string) => {
     setSelectedCity(city);
@@ -29,68 +49,119 @@ const App = () => {
     console.log('Date changed to:', date);
   };
 
-  const handleSetPlacingMode = (mode: 'tree' | 'house' | 'removeTree' | 'removeHouse' | null) => {
+  const handleSetPlacingMode = (mode: PlacingMode) => {
     setPlacingMode(mode);
   };
 
-  const handleStickerPlaced = (lat: number, lng: number, type: 'tree' | 'house') => {
-    // Log to console (terminal)
+  const handleStickerPlaced = (lat: number, lng: number, type: StickerType) => {
+    // Add to the three arrays
+    setStickerLats(prev => [...prev, lat]);
+    setStickerLngs(prev => [...prev, lng]);
+    setStickerTypes(prev => [...prev, type]);
+
     console.log(`${type.toUpperCase()} placed at coordinates:`, { latitude: lat, longitude: lng });
-    setPlacingMode(null); // Turn off placing mode after placing
-    setHasScenarioChanges(true);
-    setSimulationMessage(null);
+    // Keep placing mode active so user can place multiple stickers rapidly
   };
 
   const handleClearAll = () => {
     setShouldClearAll(true);
+    // Clear all three arrays
+    setStickerLats([]);
+    setStickerLngs([]);
+    setStickerTypes([]);
     console.log('All stickers cleared');
   };
 
   const handleClearAllComplete = () => {
     setShouldClearAll(false);
-    setHasScenarioChanges(false);
-    setSimulationMode(false);
-    setSimulationMessage(null);
   };
 
-  const toggleSimulationMode = () => {
-    if (!hasScenarioChanges) {
-      setSimulationMessage('Add or remove a tree/house before running simulation.');
+  const toggleSimulationMode = async () => {
+    const newSimulationMode = !simulationMode;
+    console.log('🔄 [App] Toggling simulation mode:', newSimulationMode ? 'ON' : 'OFF');
+    setSimulationMode(newSimulationMode);
+
+    // When simulation is turned OFF, clear the simulated heatmap
+    if (!newSimulationMode) {
+      console.log('🧹 [App] Clearing simulated heatmap');
+      setSimulatedHeatmap(null);
+      setSimulatedBoundingBox(null);
+      setSimulatedImageDate(null);
       return;
     }
-    setSimulationMode((prev) => !prev);
-    setSimulationMessage(null);
-  };
 
-  const handleStickerCountChange = (count: number) => {
-    const hasChanges = count > 0;
-    setHasScenarioChanges((prev) => {
-      if (!hasChanges && prev) {
-        setSimulationMode(false);
-        setSimulationMessage(null);
+    // When simulation is turned ON, prepare and send data to backend
+    if (newSimulationMode && stickerLats.length > 0) {
+      console.log('📍 [App] Number of stickers to simulate:', stickerLats.length);
+
+      // Convert singular types to plural for backend
+      const convertTypeToPluralBackendFormat = (type: StickerType): string => {
+        const typeMap: Record<StickerType, string> = {
+          tree: 'trees',
+          shrub: 'shrubs',
+          grass: 'grass',
+          building: 'buildings',
+          road: 'roads',
+          waterbody: 'waterbodies',
+        };
+        return typeMap[type];
+      };
+
+      const simulationData = {
+        lats: stickerLats,
+        lons: stickerLngs,
+        types: stickerTypes.map(convertTypeToPluralBackendFormat),
+      };
+
+      console.log('📦 [App] === SIMULATION DATA READY ===');
+      console.log(JSON.stringify(simulationData, null, 2));
+      console.log('🚀 [App] === SENDING TO BACKEND /simulate ===');
+
+      try {
+        const response = await fetch('http://localhost:3000/simulate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(simulationData),
+          credentials: 'include', // Important for session cookies
+        });
+
+        console.log('📡 [App] Response status:', response.status, response.statusText);
+
+        if (response.ok) {
+          const result = await response.json();
+          console.log('✅ [App] Simulation response received');
+          console.log('📊 [App] Response keys:', Object.keys(result));
+
+          // Store the heat_map_image, bounding_box, and image_date from result
+          if (result.heat_map_image) {
+            setSimulatedHeatmap(result.heat_map_image);
+            setSimulatedBoundingBox(result.bounding_box || null);
+            setSimulatedImageDate(result.image_date || null);
+            console.log('✅ [App] Simulated heat map stored! Image length:', result.heat_map_image.length, 'characters');
+            console.log('📍 [App] Bounding box:', result.bounding_box);
+            console.log('📅 [App] Image date:', result.image_date);
+            console.log('🗺️ [App] Map 2 (Simulated) will now display the NEW simulated heat map');
+          } else {
+            console.warn('⚠️ [App] No heat_map_image in response');
+          }
+        } else {
+          const errorText = await response.text();
+          console.error('❌ [App] Simulation request failed:', response.status, errorText);
+        }
+      } catch (error) {
+        console.error('❌ [App] Error sending simulation data:', error);
       }
-      return hasChanges;
-    });
+
+    } else if (newSimulationMode && stickerLats.length === 0) {
+      console.warn('⚠️ [App] No stickers placed. Add stickers before running simulation.');
+    }
   };
 
-  return (
-    <div className="relative flex min-h-screen flex-col bg-slate-800">
-      {simulationMessage && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/90 px-4">
-          <div className="max-w-sm rounded-3xl border border-amber-300 bg-slate-900/90 p-6 text-center shadow-2xl">
-            <h2 className="text-lg font-semibold text-amber-200">Simulation Not Ready</h2>
-            <p className="mt-3 text-sm text-slate-100">{simulationMessage}</p>
-            <button
-              type="button"
-              className="mt-5 rounded-full bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-900 transition hover:bg-amber-300"
-              onClick={() => setSimulationMessage(null)}
-            >
-              Got it
-            </button>
-          </div>
-        </div>
-      )}
-      <LayoutHeader
+ return (
+  <div className="flex min-h-screen flex-col bg-slate-800">
+    <LayoutHeader
       city={selectedCity}
       date={selectedDate}
       onCitySubmit={handleCitySubmit}
@@ -117,26 +188,21 @@ const App = () => {
           sharedMapZoom={sharedMapZoom}
           onMapCenterChange={setSharedMapCenter}
           onMapZoomChange={setSharedMapZoom}
-          onStickerChange={handleStickerCountChange}
-          overlayOpacity={overlayOpacity}
-          onOverlayOpacityChange={setOverlayOpacity}
-          showOpacityControl
         />
         {!simulationMode ? (
           <MapPanel
             cityName={selectedCity}
             date={selectedDate}
             imageryType="heat"
-          placingMode={null}
+            placingMode={null}
             onStickerPlaced={handleStickerPlaced}
             shouldClearAll={shouldClearAll}
             onClearAll={handleClearAllComplete}
             sharedMapCenter={sharedMapCenter}
             sharedMapZoom={sharedMapZoom}
-          onMapCenterChange={setSharedMapCenter}
-          onMapZoomChange={setSharedMapZoom}
-          overlayOpacity={overlayOpacity}
-        />
+            onMapCenterChange={setSharedMapCenter}
+            onMapZoomChange={setSharedMapZoom}
+          />
         ) : (
           <div className="flex flex-col gap-5">
             <div className="rounded-2xl border border-slate-700 bg-slate-900/40 px-2 py-1 shadow-sm">
@@ -156,7 +222,6 @@ const App = () => {
                 sharedMapZoom={sharedMapZoom}
                 onMapCenterChange={setSharedMapCenter}
                 onMapZoomChange={setSharedMapZoom}
-                overlayOpacity={overlayOpacity}
               />
             </div>
             <div className="rounded-2xl border border-dashed border-amber-400 bg-slate-900/60 px-2 py-1 shadow-inner">
@@ -165,7 +230,7 @@ const App = () => {
                 <span>Simulated</span>
               </div>
               <div className="mb-2 text-xs text-slate-400">
-                Scenario preview (same data for now)
+                {simulatedHeatmap ? 'Simulated heat map based on your changes' : 'Waiting for simulation...'}
               </div>
               <MapPanel
                 cityName={selectedCity}
@@ -179,7 +244,9 @@ const App = () => {
                 sharedMapZoom={sharedMapZoom}
                 onMapCenterChange={setSharedMapCenter}
                 onMapZoomChange={setSharedMapZoom}
-                overlayOpacity={overlayOpacity}
+                simulatedImagery={simulatedHeatmap}
+                simulatedBoundingBox={simulatedBoundingBox}
+                simulatedImageDate={simulatedImageDate}
               />
             </div>
           </div>
