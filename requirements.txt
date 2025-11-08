@@ -9,4 +9,7 @@ pystac-client
 rasterio
 requests
 xarray
-tensorflow==2.16.2
+tensorflow
+geopandas
+osmnx
+shapely

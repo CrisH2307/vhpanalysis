@@ -85,6 +85,8 @@ def simulate():
         row = int(np.clip(row, 0, heat_shape[0] - 1))
         col = int(np.clip(col, 0, heat_shape[1] - 1))
 
+        print(f"Shape: {heat_shape} Row: {row} Col: {col}")
+
         if point_type == "trees":
             ndvi_delta[row, col] += 0.3
         elif point_type == "shrubs":
@@ -128,6 +130,8 @@ def simulate():
 
     heat_min = float(np.nanmin(heat_delta))
     heat_max = float(np.nanmax(heat_delta))
+
+    heat_delta = np.where(heat_delta < 0, heat_delta * 20, heat_delta)
 
     new_heat_map = heat_map + heat_delta
 
