@@ -5,8 +5,8 @@ import MapPanel from './components/MapPanel';
 import ScorePanel from './components/ScorePanel';
 
 const App = () => {
-  const [selectedCity, setSelectedCity] = useState('Toronto');
-  const [selectedDate, setSelectedDate] = useState('2025-01-01');
+  const [selectedCity, setSelectedCity] = useState('Brampton');
+  const [selectedDate, setSelectedDate] = useState('2022-01-01');
   const [placingMode, setPlacingMode] = useState<'tree' | 'house' | 'removeTree' | 'removeHouse' | null>(null);
   const [shouldClearAll, setShouldClearAll] = useState(false);
 
@@ -39,44 +39,45 @@ const App = () => {
     setShouldClearAll(false);
   };
 
-  return (
-    <div className="flex min-h-screen flex-col bg-slate-100">
-      <LayoutHeader
-        city={selectedCity}
-        date={selectedDate}
-        onCitySubmit={handleCitySubmit}
-        onDateChange={handleDateChange}
+ return (
+  <div className="flex min-h-screen flex-col bg-slate-800"> {/* <-- changed from bg-slate-100 */}
+    <LayoutHeader
+      city={selectedCity}
+      date={selectedDate}
+      onCitySubmit={handleCitySubmit}
+      onDateChange={handleDateChange}
+    />
+    <div className="flex flex-1">
+      <LeftToolbar
+        placingMode={placingMode}
+        onSetPlacingMode={handleSetPlacingMode}
+        onClearAll={handleClearAll}
       />
-      <div className="flex flex-1">
-        <LeftToolbar
+      <main className="grid flex-1 gap-5 p-6 md:grid-cols-3">
+        <MapPanel
+          cityName={selectedCity}
+          date={selectedDate}
+          imageryType="ndvi"
           placingMode={placingMode}
-          onSetPlacingMode={handleSetPlacingMode}
-          onClearAll={handleClearAll}
+          onStickerPlaced={handleStickerPlaced}
+          shouldClearAll={shouldClearAll}
+          onClearAll={handleClearAllComplete}
         />
-        <main className="grid flex-1 gap-5 p-6 md:grid-cols-3">
-          <MapPanel
-            cityName={selectedCity}
-            date={selectedDate}
-            imageryType="ndvi"
-            placingMode={placingMode}
-            onStickerPlaced={handleStickerPlaced}
-            shouldClearAll={shouldClearAll}
-            onClearAll={handleClearAllComplete}
-          />
-          <MapPanel
-            cityName={selectedCity}
-            date={selectedDate}
-            imageryType="heat"
-            placingMode={placingMode}
-            onStickerPlaced={handleStickerPlaced}
-            shouldClearAll={shouldClearAll}
-            onClearAll={handleClearAllComplete}
-          />
-          <ScorePanel />
-        </main>
-      </div>
+        <MapPanel
+          cityName={selectedCity}
+          date={selectedDate}
+          imageryType="heat"
+          placingMode={placingMode}
+          onStickerPlaced={handleStickerPlaced}
+          shouldClearAll={shouldClearAll}
+          onClearAll={handleClearAllComplete}
+        />
+        <ScorePanel />
+      </main>
     </div>
-  );
+  </div>
+);
+
 };
 
 export default App;
