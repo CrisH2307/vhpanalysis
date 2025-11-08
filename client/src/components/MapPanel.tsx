@@ -23,7 +23,7 @@ type MapPanelProps = {
   mapLoaded: () => void;
   cityName?: string;
   date?: string;
-  imageryType?: 'ndvi' | 'heat';
+  imageryType?: 'ndvi' | 'heat' | 'simulated_heat';
   className?: string;
   placingMode: PlacingMode;
   onStickerPlaced: (lat: number, lng: number, type: StickerType) => void;
@@ -58,7 +58,6 @@ const baseClass =
 const mapContainerStyle = {
   width: '100%',
   height: '100%',
-  minHeight: '320px',
   borderRadius: '8px',
   position: 'relative' as const,
   zIndex: 10,
@@ -287,7 +286,9 @@ const MapPanel = ({
       }
     };
 
-    fetchImagery();
+    if (imageryType !== 'simulated_heat') {
+      fetchImagery();
+    }
     return () => controller.abort();
   }, [cityName, date, imageryType, imageryLabel]);
 
@@ -433,7 +434,7 @@ const MapPanel = ({
           <div className="flex flex-1 items-center justify-center">
           {/* Show error screen if imagery failed to load */}
           {imageryStatus === 'error' ? (
-            <div className="flex flex-col items-center justify-center gap-4 text-slate-400" style={{ minHeight: '320px' }}>
+            <div className="flex flex-col items-center justify-center gap-4 text-slate-400">
               {/* Satellite Icon (grayed out) */}
               <div className="relative opacity-50">
                 <img
@@ -465,32 +466,61 @@ const MapPanel = ({
           ) : loadError ? (
             <div className="text-sm text-red-500">Error loading maps. Please check your connection.</div>
           ) : !isLoaded || imageryStatus === 'loading' || imageryStatus === 'idle' || cntMapsLoaded < 2 ? (
-            <div className="flex flex-col items-center justify-center gap-4 text-slate-400" style={{ minHeight: '320px' }}>
-              {/* Satellite Image */}
-              <div className="relative">
-                <img
-                  src="/Settilite.png"
-                  alt="Satellite"
-                  className="h-32 w-32 animate-pulse object-contain"
-                />
-              </div>
+              imageryType === 'simulated_heat' ? (
+                <div className="flex flex-col items-center justify-center gap-4 text-slate-400 h-full w-full">
+                {/* Satellite Image */}
+                <div className="relative">
+                  <img
+                    src="/Simulation.png"
+                    alt="Simulation"
+                    className="h-32 w-32 animate-pulse object-contain"
+                  />
+                </div>
 
-              {/* Loading text */}
-              <div className="flex flex-col items-center gap-2">
-                <div className="flex items-center gap-2">
-                  <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24">
-                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" className="opacity-25"/>
-                    <path fill="currentColor" className="opacity-75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                  </svg>
-                  <span className="text-sm font-medium">
-                    Connecting to LANDSAT 9 Satellite
+                {/* Loading text */}
+                <div className="flex flex-col items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24">
+                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" className="opacity-25"/>
+                      <path fill="currentColor" className="opacity-75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                    </svg>
+                    <span className="text-sm font-medium">
+                      Simulating heatmap using VHP-DeltaNet
+                    </span>
+                  </div>
+                  <span className="text-xs opacity-75">
+                    {!isLoaded ? 'Initializing map interface...' : `Retrieving ${imageryLabel} data...`}
                   </span>
                 </div>
-                <span className="text-xs opacity-75">
-                  {!isLoaded ? 'Initializing map interface...' : `Retrieving ${imageryLabel} data...`}
-                </span>
               </div>
-            </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center gap-4 text-slate-400" style={{ minHeight: '320px' }}>
+                  {/* Satellite Image */}
+                  <div className="relative">
+                    <img
+                      src="/Settilite.png"
+                      alt="Satellite"
+                      className="h-32 w-32 animate-pulse object-contain"
+                    />
+                  </div>
+
+                  {/* Loading text */}
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="flex items-center gap-2">
+                      <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" className="opacity-25"/>
+                        <path fill="currentColor" className="opacity-75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                      </svg>
+                      <span className="text-sm font-medium">
+                        Connecting to LANDSAT 9 Satellite
+                      </span>
+                    </div>
+                    <span className="text-xs opacity-75">
+                      {!isLoaded ? 'Initializing map interface...' : `Retrieving ${imageryLabel} data...`}
+                    </span>
+                  </div>
+                </div>
+              )
           ) : (
             <GoogleMap
               mapContainerStyle={mapContainerStyle}

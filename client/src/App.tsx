@@ -80,6 +80,7 @@ const App = () => {
     setStickerLats([]);
     setStickerLngs([]);
     setStickerTypes([]);
+    setSimulationMode(false);
     console.log('All stickers cleared');
   };
 
@@ -87,7 +88,7 @@ const App = () => {
     setShouldClearAll(false);
   };
 
-  const toggleSimulationMode = async () => {
+  const simulate = async () => {
     // Check if there are scenario changes before allowing simulation
     if (!hasScenarioChanges) {
       setSimulationMessage('Add or remove a sticker before running simulation.');
@@ -196,7 +197,7 @@ const App = () => {
           onSetPlacingMode={handleSetPlacingMode}
           onClearAll={handleClearAll}
           simulationEnabled={simulationMode}
-          onToggleSimulation={toggleSimulationMode}
+          onToggleSimulation={simulate}
         />
         <main className="grid flex-1 gap-2 p-2 md:grid-cols-3 md:auto-rows-fr">
           <div className="flex h-full flex-col gap-5">
@@ -255,13 +256,11 @@ const App = () => {
                   <span>Land Surface Temperature</span>
                   <span>Simulated</span>
                 </div>
-                <div className="mb-2 px-2 text-xs text-slate-400">
-                  {simulatedHeatmap ? 
-                    <div className="flex flex-1">
+                <div className="text-xs text-slate-400 h-full w-full">
                     <MapPanel
                       cityName={selectedCity}
                       date={selectedDate}
-                      imageryType="heat"
+                      imageryType="simulated_heat"
                       placingMode={null}
                       onStickerPlaced={handleStickerPlaced}
                       shouldClearAll={shouldClearAll}
@@ -274,13 +273,6 @@ const App = () => {
                       mapLoaded={mapLoaded}
                       className="h-full flex-1"
                     />
-                  </div> : 
-                  <div className="flex flex-1">
-                    <div className="flex flex-1">
-                      Waiting for simulation...
-                    </div>
-                  </div>
-                  }
                 </div>
                 
               </div>

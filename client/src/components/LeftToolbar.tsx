@@ -199,24 +199,24 @@ const LeftToolbar = ({
       <div className="h-px w-full bg-slate-600" />
 
       {/* Utility Buttons */}
-      <div className="grid grid-cols-2 gap-2">
+      <div className="flex flex-col gap-2">
         <button
           type="button"
           aria-label="Clear all"
-          className={buttonClass}
+          className="w-full bg-gray-500 text-white px-4 py-2 rounded-lg"
           title="Clear all"
           onClick={onClearAll}
         >
-          <Refresh className="h-6 w-6" />
+          Clear All
         </button>
         <button
           type="button"
           aria-label="Toggle simulation"
-          className={simulationEnabled ? activeButtonClass : buttonClass}
+          className="w-full bg-blue-500 text-white px-4 py-2 rounded-lg"
           title="Toggle simulation view"
           onClick={onToggleSimulation}
         >
-          <Play className="h-6 w-6" />
+          Simulate
         </button>
       </div>
     </aside>
