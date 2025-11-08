@@ -15,6 +15,7 @@ from geopy.geocoders import Nominatim
 from typing import Optional, Tuple
 
 from pystac_client import Client
+from rasterio.errors import RasterioIOError
 from rasterio.session import AWSSession
 from rasterio.windows import from_bounds
 from rasterio.warp import transform_bounds
@@ -60,32 +61,37 @@ def search_landsat_items(date, bbox):
 
 
 def crop_asset(asset_href, lon_min, lat_min, lon_max, lat_max, verbose=True):
-    with rasterio.open(asset_href) as src:
+    try:
+        with rasterio.open(asset_href) as src:
+            if verbose:
+                print("Loading data...")
+
+            bbox_src = transform_bounds(
+                "EPSG:4326",
+                src.crs,
+                lon_min,
+                lat_min,
+                lon_max,
+                lat_max,
+                densify_pts=21,
+            )
+
+            window = from_bounds(*bbox_src, transform=src.transform)
+            window = window.round_offsets().round_lengths()
+
+            data = src.read(1, window=window).astype(float)
+            profile = src.profile
+            profile.update(
+                {
+                    "height": data.shape[0],
+                    "width": data.shape[1],
+                    "transform": src.window_transform(window),
+                }
+            )
+    except RasterioIOError as exc:
         if verbose:
-            print("Loading data...")
-
-        bbox_src = transform_bounds(
-            "EPSG:4326",
-            src.crs,
-            lon_min,
-            lat_min,
-            lon_max,
-            lat_max,
-            densify_pts=21,
-        )
-
-        window = from_bounds(*bbox_src, transform=src.transform)
-        window = window.round_offsets().round_lengths()
-
-        data = src.read(1, window=window).astype(float)
-        profile = src.profile
-        profile.update(
-            {
-                "height": data.shape[0],
-                "width": data.shape[1],
-                "transform": src.window_transform(window),
-            }
-        )
+            print(f"Failed to open asset {asset_href}: {exc}")
+        return None, None
 
     return data, profile
 
@@ -98,7 +104,11 @@ def load_band(item, band_substring, bbox, apply_scale=False, nodata_value=0, ver
     if asset is None:
         return None, None, None
 
-    data, profile = crop_asset(asset.href, lon_min, lat_min, lon_max, lat_max, verbose=verbose)
+    signed_asset = pc.sign(asset)
+    data, profile = crop_asset(signed_asset.href, lon_min, lat_min, lon_max, lat_max, verbose=verbose)
+
+    if data is None or profile is None:
+        return None, None, None
 
     inferred_nodata = nodata_value
     if inferred_nodata is None:

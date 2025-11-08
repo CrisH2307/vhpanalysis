@@ -1,10 +1,13 @@
-from service.imagery.sat_extract import geocode_city, load_band, convert_to_celsius
-from pystac_client import Client
-import planetary_computer as pc
-import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.colors import TwoSlopeNorm
+import pickle
 import time
+from pathlib import Path
+from typing import Any, Dict, List, Set, Tuple
+
+import numpy as np
+import planetary_computer as pc
+from pystac_client import Client
+
+from service.imagery.sat_extract import convert_to_celsius, geocode_city, load_band
 
 catalog = Client.open(
     "https://planetarycomputer.microsoft.com/api/stac/v1",
@@ -20,8 +23,6 @@ cities = [
     "Vaughan, ON, Canada",
     "Markham, ON, Canada",
     "Richmond Hill, ON, Canada",
-    "Newmarket, ON, Canada",
-    "Aurora, ON, Canada",
     "Hamilton, ON, Canada",
 ]
 
@@ -45,7 +46,51 @@ def get_vegetation_phase(month):
     elif month in [9, 10]:
         return "senescence"
 
-ndvi_heat_pairs = []
+DATA_DIR = Path(__file__).resolve().parent / "data"
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+CHECKPOINT_PATH = DATA_DIR / "data_samples_checkpoint.pkl"
+FINAL_PATH = DATA_DIR / "data_samples.pkl"
+CHECKPOINT_INTERVAL = 100
+
+
+def load_existing_samples() -> List[Dict[str, Any]]:
+    existing_path = CHECKPOINT_PATH if CHECKPOINT_PATH.exists() else FINAL_PATH
+
+    if existing_path.exists():
+        print(f"Loading existing samples from {existing_path}")
+        with existing_path.open("rb") as f:
+            return pickle.load(f)
+    return []
+
+
+def save_samples(samples: List[Dict[str, Any]], path: Path, label: str) -> None:
+    with path.open("wb") as f:
+        pickle.dump(samples, f)
+    print(f"[{label}] Saved {len(samples)} samples to {path}")
+
+
+def sample_key(sample: Dict[str, Any]) -> Tuple[str, str, str, str, int, int]:
+    city1 = sample.get("city_1") or sample.get("city") or ""
+    city2 = sample.get("city_2") or sample.get("city") or ""
+    return (
+        city1,
+        city2,
+        sample["asset_date_1"],
+        sample["asset_date_2"],
+        sample["row_start"],
+        sample["col_start"],
+    )
+
+
+ndvi_heat_pairs: List[Dict[str, Any]] = []
+data_samples: List[Dict[str, Any]] = load_existing_samples()
+existing_keys: Set[Tuple[str, str, str, str, int, int]] = {
+    sample_key(sample) for sample in data_samples
+}
+samples_since_checkpoint = 0
+
+chunk_size = 128
+half_chunk = chunk_size // 2
 
 for city in cities:
     bbox = None
@@ -70,12 +115,7 @@ for city in cities:
 
     print(f"Found {len(items)} items for {city}")
 
-    if len(ndvi_heat_pairs) >= 3:
-        break
-
     for idx, item in enumerate(items):
-        if good_images >= 3:
-            break
 
         print(f"{idx+1}/{len(items)} ({good_images} good images)", end="\r")
 
@@ -97,12 +137,9 @@ for city in cities:
         if heat_dn is None or np.isnan(heat_dn).any():
             continue
 
-        heat = convert_to_celsius(heat_asset, heat_dn)
-        if np.isnan(heat).any():
+        heat_celsius = convert_to_celsius(heat_asset, heat_dn)
+        if np.isnan(heat_celsius).any():
             continue
-
-        thermal_k = heat * 0.00341802 + 149.0
-        thermal_c = thermal_k - 273.15
 
         ndvi_denominator = nir + red
         mask = np.isclose(ndvi_denominator, 0) | np.isnan(nir) | np.isnan(red)
@@ -114,70 +151,104 @@ for city in cities:
         if np.isnan(ndvi).any():
             continue
 
-        mean_heat = np.nanmean(thermal_c)
         asset_date = item.properties["datetime"].split("T")[0]
         asset_month = int(item.properties["datetime"].split("T")[0].split("-")[1])
 
         vegetation_phase = get_vegetation_phase(asset_month)
+        mean_heat = np.nanmean(heat_celsius)
 
-        ndvi_heat_pairs.append((ndvi, thermal_c, mean_heat, asset_date, vegetation_phase))
+        ndvi_heat_pairs.append(
+            {
+                "city": city,
+                "ndvi": ndvi,
+                "heat": heat_celsius,
+                "mean_heat": mean_heat,
+                "asset_date": asset_date,
+                "vegetation_phase": vegetation_phase,
+            }
+        )
         good_images += 1
+
+# Save ndvi_heat_pairs to a file
+with open("ndvi_heat_pairs.pkl", "wb") as f:
+    pickle.dump(ndvi_heat_pairs, f)
+
+total_combinations_possible = len(ndvi_heat_pairs) * (len(ndvi_heat_pairs) - 1)
+total_combinations_formed = 0
 
 # Make pairs of ndvi and heat
 for i in range(len(ndvi_heat_pairs)):
-    for j in range(i+1, len(ndvi_heat_pairs)):
-        ndvi1, heat1, mean_heat1, asset_date1, vegetation_phase1 = ndvi_heat_pairs[i]
-        ndvi2, heat2, mean_heat2, asset_date2, vegetation_phase2 = ndvi_heat_pairs[j]
+    for j in range(len(ndvi_heat_pairs)):
+        print(f"Forming combination {i+1}/{len(ndvi_heat_pairs)} ({j+1}/{len(ndvi_heat_pairs)})", end="\r")
+        
+        if i == j:
+            continue
+
+        pair1 = ndvi_heat_pairs[i]
+        pair2 = ndvi_heat_pairs[j]
+
+        ndvi1 = pair1["ndvi"]
+        heat1 = pair1["heat"]
+        mean_heat1 = pair1["mean_heat"]
+        asset_date1 = pair1["asset_date"]
+        vegetation_phase1 = pair1["vegetation_phase"]
+        city1 = pair1["city"]
+
+        ndvi2 = pair2["ndvi"]
+        heat2 = pair2["heat"]
+        mean_heat2 = pair2["mean_heat"]
+        asset_date2 = pair2["asset_date"]
+        vegetation_phase2 = pair2["vegetation_phase"]
+        city2 = pair2["city"]
 
         # Check if pair can be formed (same vegetation phase and similar heat)
-        if vegetation_phase1 != vegetation_phase2 or abs(mean_heat1 - mean_heat2) > 2.5:
+        if vegetation_phase1 != vegetation_phase2 or abs(mean_heat1 - mean_heat2) > 2.5 or city1 != city2 or ndvi1.shape != ndvi2.shape or heat1.shape != heat2.shape:
             continue
 
         delta_ndvi = ndvi1 - ndvi2
         delta_heat = heat1 - heat2
         
-        ndvi_min = np.nanmin(delta_ndvi)
-        ndvi_max = np.nanmax(delta_ndvi)
+        dimension = delta_ndvi.shape[0]
 
-        fig, ax = plt.subplots(figsize=(10, 8))
-        ndvi_span = max(abs(ndvi_min), abs(ndvi_max))
-        if ndvi_span == 0:
-            ndvi_span = 1e-6
-        norm_ndvi = TwoSlopeNorm(vmin=-ndvi_span, vcenter=0, vmax=ndvi_span)
-        im_ndvi = ax.imshow(delta_ndvi, cmap="RdBu", norm=norm_ndvi)
-        ax.axis("off")
-        cbar_ndvi = fig.colorbar(im_ndvi, ax=ax, fraction=0.046, pad=0.04)
-        cbar_ndvi.set_label("NDVI Δ (unitless)")
-        ax.set_title(f"NDVI Δ {asset_date1} vs {asset_date2}\nmin={ndvi_min:.3f}, max={ndvi_max:.3f}")
+        for row in range(0, dimension - chunk_size + 1, half_chunk):
+            for col in range(0, dimension - chunk_size + 1, half_chunk):
+                ndvi_chunk = delta_ndvi[row : row + chunk_size, col : col + chunk_size]
+                heat_chunk = delta_heat[row : row + chunk_size, col : col + chunk_size]
 
-        output_path = f"delta_ndvi_{asset_date1}_{asset_date2}.png"
-        fig.savefig(
-            output_path,
-            bbox_inches="tight",
-            pad_inches=0,
-        )
-        plt.close(fig)
+                if np.isnan(ndvi_chunk).all() or np.isnan(heat_chunk).all():
+                    continue
 
-        heat_min = np.nanmin(delta_heat)
-        heat_max = np.nanmax(delta_heat)
+                sample = {
+                    "ndvi_delta": ndvi_chunk,
+                    "lst_delta": heat_chunk,
+                    "asset_date_1": asset_date1,
+                    "asset_date_2": asset_date2,
+                    "vegetation_phase": vegetation_phase1,
+                    "row_start": row,
+                    "col_start": col,
+                    "row_end": row + chunk_size,
+                    "col_end": col + chunk_size,
+                }
 
-        fig, ax = plt.subplots(figsize=(10, 8))
-        heat_span = max(abs(heat_min), abs(heat_max))
-        if heat_span == 0:
-            heat_span = 1e-6
-        norm_heat = TwoSlopeNorm(vmin=-heat_span, vcenter=0, vmax=heat_span)
-        im_heat = ax.imshow(delta_heat, cmap="RdBu_r", norm=norm_heat)
-        ax.axis("off")
-        cbar_heat = fig.colorbar(im_heat, ax=ax, fraction=0.046, pad=0.04)
-        cbar_heat.set_label("Temperature Δ (°C)")
+                key = sample_key(sample)
+                if key in existing_keys:
+                    continue
 
-        ax.set_title(f"Temperature Δ {asset_date1} vs {asset_date2}\nmin={heat_min:.2f}°C, max={heat_max:.2f}°C")
+                data_samples.append(sample)
+                existing_keys.add(key)
+                samples_since_checkpoint += 1
+                total_combinations_formed += 1
 
-        output_path = f"delta_heat_{asset_date1}_{asset_date2}.png"
-        fig.savefig(
-            output_path,
-            bbox_inches="tight",
-            pad_inches=0,
-        )
-        plt.close(fig)
-        
+                if samples_since_checkpoint >= CHECKPOINT_INTERVAL:
+                    save_samples(data_samples, CHECKPOINT_PATH, label="checkpoint")
+                    samples_since_checkpoint = 0
+
+print(f"Total combinations possible: {total_combinations_possible}")
+print(f"Total combinations formed: {total_combinations_formed}")
+
+# Save data samples to a file
+save_samples(data_samples, FINAL_PATH, label="final")
+
+# Remove checkpoint if final save succeeded
+if CHECKPOINT_PATH.exists():
+    CHECKPOINT_PATH.unlink()
