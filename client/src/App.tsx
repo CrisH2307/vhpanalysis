@@ -10,6 +10,10 @@ const App = () => {
   const [placingMode, setPlacingMode] = useState<'tree' | 'house' | 'removeTree' | 'removeHouse' | null>(null);
   const [shouldClearAll, setShouldClearAll] = useState(false);
 
+  // Shared map state for synchronized panning and zooming
+  const [sharedMapCenter, setSharedMapCenter] = useState<{ lat: number; lng: number } | undefined>(undefined);
+  const [sharedMapZoom, setSharedMapZoom] = useState<number | undefined>(undefined);
+
   const handleCitySubmit = (city: string) => {
     setSelectedCity(city);
     console.log('City changed to:', city);
@@ -62,15 +66,23 @@ const App = () => {
           onStickerPlaced={handleStickerPlaced}
           shouldClearAll={shouldClearAll}
           onClearAll={handleClearAllComplete}
+          sharedMapCenter={sharedMapCenter}
+          sharedMapZoom={sharedMapZoom}
+          onMapCenterChange={setSharedMapCenter}
+          onMapZoomChange={setSharedMapZoom}
         />
         <MapPanel
           cityName={selectedCity}
           date={selectedDate}
           imageryType="heat"
-          placingMode={placingMode}
+          placingMode={null}
           onStickerPlaced={handleStickerPlaced}
           shouldClearAll={shouldClearAll}
           onClearAll={handleClearAllComplete}
+          sharedMapCenter={sharedMapCenter}
+          sharedMapZoom={sharedMapZoom}
+          onMapCenterChange={setSharedMapCenter}
+          onMapZoomChange={setSharedMapZoom}
         />
         <ScorePanel />
       </main>
