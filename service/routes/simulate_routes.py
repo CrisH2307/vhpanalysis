@@ -12,9 +12,12 @@ import time
 
 from service.imagery.session_store import get_session_data
 from service.simulation.model import build_unet, to_tensor
+import cv2
+from sklearn.cluster import KMeans
 
 
 simulate_bp = Blueprint("simulate", __name__, url_prefix="/simulate")
+weakspots_bp = Blueprint("weakspots", __name__, url_prefix="/weakspots")
 
 weights_path = (
     Path(__file__).resolve().parent.parent
@@ -155,3 +158,62 @@ def simulate():
     heat_map_base64 = base64.b64encode(buffer.read()).decode("utf-8")
 
     return jsonify({"heat_map_image": heat_map_base64}), 200
+
+
+@weakspots_bp.route("", methods=["GET"], strict_slashes=False)
+def find_weak_spots():
+    session_id = session.get("session_id")
+    if not session_id:
+        return jsonify({"error": "Session ID not found"}), 400
+
+    session_data = get_session_data(session_id)
+    if not session_data:
+        return jsonify({"error": "Session data not found"}), 400
+
+    heat_entry = session_data.get("heat_map")
+    ndvi_entry = session_data.get("ndvi_map") or session_data.get("ndvi")
+
+    if not heat_entry or "data" not in heat_entry:
+        return jsonify({"error": "Heat map not available"}), 400
+    if not ndvi_entry or "data" not in ndvi_entry:
+        return jsonify({"error": "Vegetation map not available"}), 400
+
+    heat_map = heat_entry["data"]
+    ndvi_map = ndvi_entry["data"]
+    bbox = heat_entry["bbox"]
+
+    heat_norm = np.clip((heat_map - np.nanmin(heat_map)) / (np.nanmax(heat_map) - np.nanmin(heat_map) + 1e-6), 0, 1)
+    ndvi_norm = np.clip((ndvi_map - np.nanmin(ndvi_map)) / (np.nanmax(ndvi_map) - np.nanmin(ndvi_map) + 1e-6), 0, 1)
+
+    score_map = heat_norm * (1.0 - ndvi_norm)
+    score_map = cv2.GaussianBlur(score_map.astype(np.float32), (9, 9), 0)
+
+    valid_scores = score_map[np.isfinite(score_map)]
+    if valid_scores.size == 0:
+        return jsonify({"clusters": [], "threshold": None}), 200
+
+    threshold = float(np.percentile(valid_scores, 95))
+
+    binary = (score_map >= threshold).astype(np.uint8)
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+    binary = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel, iterations=1)
+    binary = cv2.morphologyEx(binary, cv2.MORPH_DILATE, kernel, iterations=2)
+
+    num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(binary, connectivity=8)
+
+    lon_min, lat_min, lon_max, lat_max = bbox
+    h, w = heat_map.shape
+
+    centers = []
+
+    for label in range(1, num_labels):
+        area = stats[label, cv2.CC_STAT_AREA]
+        if area < 100:
+            continue
+
+        cx, cy = centroids[label]
+        lon = lon_min + (cx / w) * (lon_max - lon_min)
+        lat = lat_max - (cy / h) * (lat_max - lat_min)
+        centers.append({"lat": float(lat), "lon": float(lon), "pixels": int(area)})
+
+    return jsonify({"clusters": centers, "threshold": threshold}), 200

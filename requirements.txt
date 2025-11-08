@@ -13,3 +13,5 @@ tensorflow
 geopandas
 osmnx
 shapely
+opencv-python
+scikit-learn

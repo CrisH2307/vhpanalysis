@@ -12,7 +12,7 @@ if __package__ is None or __package__ == "":
         sys.path.insert(0, str(project_root))
     from service.routes.imagery_routes import imagery_bp
     from service.imagery.session_store import InMemorySessionDataStore, set_session_data_store
-    from service.routes.simulate_routes import simulate_bp
+    from service.routes.simulate_routes import simulate_bp, weakspots_bp
     from service.routes.score_routes import score_bp
 else:
     from .routes.imagery_routes import imagery_bp
@@ -34,6 +34,7 @@ def create_app() -> Flask:
 
     app.register_blueprint(imagery_bp)
     app.register_blueprint(simulate_bp)
+    app.register_blueprint(weakspots_bp)
     app.register_blueprint(score_bp)
 
     @app.before_request
