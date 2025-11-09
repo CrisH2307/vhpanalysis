@@ -226,9 +226,6 @@ const MapPanel = ({
   }, []);
 
   useEffect(() => {
-    console.log('simulatedBoundingBox', simulatedBoundingBox);
-    console.log('simulatedHeatmap', simulatedHeatmap);
-    console.log('simulationLoaded', simulationLoaded);
     if (simulatedBoundingBox && simulatedHeatmap && simulationLoaded) {
       const [lon_min, lat_min, lon_max, lat_max] = simulatedBoundingBox;
       const centerLat = (lat_min + lat_max) / 2;

@@ -32,6 +32,10 @@ const App = () => {
   const [simulatedImageDate, setSimulatedImageDate] = useState<string | null>(null);
   const [simulationLoaded, setSimulationLoaded] = useState(false);
 
+  // State for score
+  const [score, setScore] = useState<number>(0);
+  const [explanation, setExplanation] = useState<string>('');
+
   // Log sticker arrays whenever they change
   useEffect(() => {
     if (stickerLats.length > 0) {
@@ -63,11 +67,17 @@ const App = () => {
   }
 
   const handleCitySubmit = (city: string) => {
+    setScore(0);
+    setExplanation('');
+    setCntMapsLoaded(0);
     setSelectedCity(city);
     console.log('City changed to:', city);
   };
 
   const handleDateChange = (date: string) => {
+    setScore(0);
+    setExplanation('');
+    setCntMapsLoaded(0);
     setSelectedDate(date);
     console.log('Date changed to:', date);
   };
@@ -182,7 +192,27 @@ const App = () => {
   };
 
   useEffect(() => {
-    console.log('cntMapsLoaded', cntMapsLoaded);
+    if (cntMapsLoaded === 2) {
+      fetch(
+        `http://localhost:3000/score?city=${selectedCity}&date=${selectedDate}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+        }
+      )
+      .then(res => res.json())
+      .then(data => {
+        console.log('📊 [App] Score:', data);
+        setScore(data.score);
+        setExplanation(data.explanation);
+      })
+      .catch(error => {
+        console.error('❌ [App] Error fetching score:', error);
+      });
+    }
   }, [cntMapsLoaded]);
 
   return (
@@ -206,6 +236,20 @@ const App = () => {
             <div className="flex flex-1 flex-col rounded-2xl border border-slate-700 bg-slate-900/40 shadow-sm">
               <div className="m-2 flex items-center justify-between text-xs uppercase text-slate-400">
                 <span>Normalized Difference Vegetation Index</span>
+              </div>
+              <div className="flex flex-1 text-sm gap-3 text-slate-400 px-2 max-h-7">
+                <div className='flex items-center gap-2'>
+                  <div style={{width: '15px', height: '15px', backgroundColor: '#3b6741'}}></div>
+                  <span>Vegetation</span>
+                </div>
+                <div className='flex items-center gap-2'>
+                  <div style={{width: '15px', height: '15px', backgroundColor: '#a4c9a9'}}></div>
+                  <span>Structures</span>
+                </div>
+                <div className='flex items-center gap-2'>
+                  <div style={{width: '15px', height: '15px', backgroundColor: '#d75642'}}></div>
+                  <span>Water Bodies</span>
+                </div>
               </div>
               <div className="flex flex-1">
                 <MapPanel
@@ -232,6 +276,15 @@ const App = () => {
               <div className="m-2 flex items-center justify-between text-xs uppercase text-slate-400">
                 <span>Land Surface Temperature</span>
                 <span>Original</span>
+              </div>
+              <div className="flex flex-1 text-sm gap-3 text-slate-400 px-2 max-h-7">
+                <div className='flex items-center gap-2 w-full'>
+                  <span>-10°C</span>
+                  <div style={{flex: 1, width: '100%', height: '10px', background: 'linear-gradient(to right, #000004, #1b0c41, #4a0c6b, #780c6a, #a61a5e, #d12e52, #f54a43, #fe712e, #fca30e, #ecce00)'}}>
+
+                  </div>
+                  <span>+40°C</span>
+                </div>
               </div>
               <div className="flex flex-1">
                 <MapPanel
@@ -284,7 +337,11 @@ const App = () => {
             ) : null}
           </div>
           <div className="flex h-full flex-col">
-            <ScorePanel className="flex-1" />
+            <ScorePanel 
+              className="flex-1" 
+              score={score}
+              explanation={explanation}
+            />
           </div>
         </main>
       </div>

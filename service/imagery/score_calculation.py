@@ -91,39 +91,44 @@ def calculate_city_score_with_explanation(
 
     # --- Explanatory paragraphs ---
     summary = (
-        f"{city_name} demonstrates a {sustainability_level}, scoring {score:.1f} out of 100 on the environmental prosperity index. "
+        f"<p><strong>{city_name}</strong> demonstrates a <span class='font-semibold'>{sustainability_level}</span>, scoring <strong>{score:.1f}/100</strong> on the environmental prosperity index. "
         f"This score represents a balance between vegetation cover, heat dynamics, and population density — key indicators of how effectively "
-        f"the city manages its natural and built environments."
+        f"the city manages its natural and built environments.</p>"
     )
 
     vegetation_section = (
-        f"The city shows {vegetation_desc}, with vegetation covering approximately {vegetation_ratio*100:.3f}% of the total area. "
+        f"<h3 class='mt-4 text-base font-semibold text-slate-200'>Vegetation Health</h3>"
+        f"<p>The city shows <strong>{vegetation_desc}</strong>, with vegetation covering approximately <strong>{vegetation_ratio*100:.3f}%</strong> of the total area. "
         f"This level of greenery plays a critical role in maintaining ecological stability, improving air quality, and moderating urban heat. "
-        f"Higher vegetation density often correlates with improved livability and resilience against rising temperatures."
+        f"Higher vegetation density often correlates with improved livability and resilience against rising temperatures.</p>"
     )
 
     heat_section = (
-        f"Thermal analysis reveals {heat_desc}. The average surface temperature within the city is {heat_map_in_city_mean:.2f}°C, "
-        f"compared to {heat_map_out_of_city_mean:.2f}°C outside its borders. A difference of {heat_diff:.2f}°C indicates the extent "
-        f"of the urban heat island effect, which can influence energy consumption, comfort, and public health."
+        f"<h3 class='mt-4 text-base font-semibold text-slate-200'>Heat Dynamics</h3>"
+        f"<p>Thermal analysis reveals <strong>{heat_desc}</strong>. The average surface temperature within the city is <strong>{heat_map_in_city_mean:.2f}°C</strong>, "
+        f"compared to <strong>{heat_map_out_of_city_mean:.2f}°C</strong> outside its borders. A difference of <strong>{heat_diff:.2f}°C</strong> indicates the extent "
+        f"of the urban heat island effect, which can influence energy consumption, comfort, and public health.</p>"
     )
 
     ndvi_section = (
-        f"The vegetation vitality, as indicated by the NDVI metric, is {ndvi_desc}. "
-        f"With an in-city NDVI mean of {ndvi_map_in_city_mean:.3f} versus {ndvi_map_out_of_city_mean:.3f} outside, "
+        f"<h3 class='mt-4 text-base font-semibold text-slate-200'>Vegetation Vitality (NDVI)</h3>"
+        f"<p>The vegetation vitality, as indicated by the NDVI metric, is <strong>{ndvi_desc}</strong>. "
+        f"With an in-city NDVI mean of <strong>{ndvi_map_in_city_mean:.3f}</strong> versus <strong>{ndvi_map_out_of_city_mean:.3f}</strong> outside, "
         f"this measure reflects the overall health and density of green vegetation. Positive NDVI differences typically signal "
-        f"strong local ecosystem performance and better CO₂ absorption rates."
+        f"strong local ecosystem performance and better CO₂ absorption rates.</p>"
     )
 
     density_section = (
-        f"The population density is approximately {pop_density:.0f} people per square kilometer, categorized as {density_desc}. "
+        f"<h3 class='mt-4 text-base font-semibold text-slate-200'>Population Density</h3>"
+        f"<p>The population density is approximately <strong>{pop_density:.0f}</strong> people per square kilometer, categorized as <strong>{density_desc}</strong>. "
         f"Higher density increases pressure on green spaces and often correlates with elevated heat and reduced per-capita vegetation. "
-        f"Balanced density enables efficient infrastructure while preserving access to natural environments."
+        f"Balanced density enables efficient infrastructure while preserving access to natural environments.</p>"
     )
 
     hot_surface_section = (
-        f"The proportion of thermally active or impervious surfaces is {hot_surface_ratio*100:.5f}%, which suggests {hot_surface_desc}. "
-        f"Reducing such surfaces through green roofs, reflective materials, or expanded canopy coverage could substantially enhance the city’s heat resilience."
+        f"<h3 class='mt-4 text-base font-semibold text-slate-200'>Heat-Absorbing Surfaces</h3>"
+        f"<p>The proportion of thermally active or impervious surfaces is <strong>{hot_surface_ratio*100:.5f}%</strong>, which suggests <strong>{hot_surface_desc}</strong>. "
+        f"Reducing such surfaces through green roofs, reflective materials, or expanded canopy coverage could substantially enhance the city’s heat resilience.</p>"
     )
 
     # --- Combine all paragraphs ---
@@ -189,7 +194,7 @@ def calculate_score(heat_map: np.ndarray, ndvi_map: np.ndarray, bbox: Tuple[floa
         ((features.geometry.type == 'Polygon') | (features.geometry.type == 'MultiPolygon')) &
         (features['name'].str.contains(city.split(',')[0], case=False, na=False))
     ]
-
+    
     if city_boundary_gdf.empty:
         print(f"Could not find administrative boundary for {city}.")
         return None
