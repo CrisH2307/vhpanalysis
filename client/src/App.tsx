@@ -36,7 +36,7 @@ const App = () => {
   const [score, setScore] = useState<number>(0);
   const [explanation, setExplanation] = useState<string>('');
 
-  const [date, setDate] = useState<string>('2022-01-01');
+  const [date, setDate] = useState<string>('2025-01-01');
 
   // Log sticker arrays whenever they change
   useEffect(() => {

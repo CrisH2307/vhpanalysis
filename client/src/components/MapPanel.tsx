@@ -89,19 +89,20 @@ const MapPanel = ({
   simulatedBoundingBox,
   simulationLoaded,
 }: MapPanelProps) => {
-  const [mapCenter, setMapCenter] = useState(sharedMapCenter || CITY_COORDINATES[cityName] || CITY_COORDINATES.Toronto);
-  const [mapZoom, setMapZoom] = useState(sharedMapZoom || 11);
-  const [stickers, setStickers] = useState<Sticker[]>([]);
-  const [imageryData, setImageryData] = useState<ImageryResponse | null>(null);
-  const [imageryStatus, setImageryStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-  const [imageryError, setImageryError] = useState<string | null>(null);
   const [map, setMap] = useState<google.maps.Map | null>(null);
+  const [mapCenter, setMapCenter] = useState(sharedMapCenter || CITY_COORDINATES[cityName] || CITY_COORDINATES.Toronto);
+  const [mapZoom, setMapZoom] = useState(sharedMapZoom ?? 11);
   const [isUpdatingFromProps, setIsUpdatingFromProps] = useState(false);
+  const [imageryData, setImageryData] = useState<ImageryResponse | null>(null);
+  const [imageryStatus, setImageryStatus] = useState<'idle' | 'loading' | 'error' | 'success'>('idle');
+  const [imageryError, setImageryError] = useState<string | null>(null);
+  const [stickers, setStickers] = useState<Sticker[]>([]);
 
   // Use refs to track the latest values without causing re-renders
   const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastCenterRef = useRef<{ lat: number; lng: number } | null>(null);
   const lastZoomRef = useRef<number | null>(null);
+  const lastSyncRef = useRef<{ center: { lat: number; lng: number }; zoom: number } | null>(null);
 
   const { isLoaded, loadError } = useJsApiLoader({
     id: 'google-map-script',
@@ -189,18 +190,34 @@ const MapPanel = ({
     if (sharedMapCenter) {
       setIsUpdatingFromProps(true);
       setMapCenter(sharedMapCenter);
-      setTimeout(() => setIsUpdatingFromProps(false), 100);
+      if (map) {
+        map.panTo(sharedMapCenter);
+        lastSyncRef.current = {
+          center: sharedMapCenter,
+          zoom: lastSyncRef.current?.zoom ?? map.getZoom() ?? mapZoom,
+        };
+      }
+      const timeout = window.setTimeout(() => setIsUpdatingFromProps(false), 200);
+      return () => window.clearTimeout(timeout);
     }
-  }, [sharedMapCenter]);
+  }, [sharedMapCenter, map, mapZoom]);
 
   // Sync with shared map zoom
   useEffect(() => {
     if (sharedMapZoom !== undefined) {
       setIsUpdatingFromProps(true);
       setMapZoom(sharedMapZoom);
-      setTimeout(() => setIsUpdatingFromProps(false), 100);
+      if (map && map.getZoom() !== sharedMapZoom) {
+        map.setZoom(sharedMapZoom);
+      }
+      lastSyncRef.current = {
+        center: lastSyncRef.current?.center ?? map?.getCenter()?.toJSON() ?? mapCenter,
+        zoom: sharedMapZoom,
+      };
+      const timeout = window.setTimeout(() => setIsUpdatingFromProps(false), 200);
+      return () => window.clearTimeout(timeout);
     }
-  }, [sharedMapZoom]);
+  }, [sharedMapZoom, map, mapCenter]);
 
   // Update map center when city changes
   useEffect(() => {
@@ -226,31 +243,77 @@ const MapPanel = ({
   }, []);
 
   useEffect(() => {
-    if (simulatedBoundingBox && simulatedHeatmap && simulationLoaded) {
-      const [lon_min, lat_min, lon_max, lat_max] = simulatedBoundingBox;
-      const centerLat = (lat_min + lat_max) / 2;
-      const centerLng = (lon_min + lon_max) / 2;
-      setMapCenter({ lat: centerLat, lng: centerLng });
-
-      const latDiff = lat_max - lat_min;
-      const lngDiff = lon_max - lon_min;
-      const maxDiff = Math.max(latDiff, lngDiff);
-
-      let newZoom = 11;
-      if (maxDiff < 0.1) newZoom = 13;
-      else if (maxDiff < 0.2) newZoom = 12;
-      else if (maxDiff < 0.5) newZoom = 11;
-      else if (maxDiff < 1) newZoom = 10;
-      else newZoom = 9;
-
-      setMapZoom(newZoom + 0.5);
-      setImageryData({
-        image: simulatedHeatmap,
-        bounding_box: simulatedBoundingBox as [number, number, number, number],
-        image_date: new Date().toISOString(),
-      });
+    if (!simulatedBoundingBox || !simulatedHeatmap || !simulationLoaded) {
+      return;
     }
-  }, [simulatedBoundingBox, simulatedHeatmap, simulationLoaded])
+
+    const [lon_min, lat_min, lon_max, lat_max] = simulatedBoundingBox;
+    const centerLat = (lat_min + lat_max) / 2;
+    const centerLng = (lon_min + lon_max) / 2;
+    const newCenter = { lat: centerLat, lng: centerLng };
+
+    setMapCenter(newCenter);
+    setIsUpdatingFromProps(true);
+
+    const latDiff = lat_max - lat_min;
+    const lngDiff = lon_max - lon_min;
+    const maxDiff = Math.max(latDiff, lngDiff);
+
+    let newZoom = 11;
+    if (maxDiff < 0.1) newZoom = 13;
+    else if (maxDiff < 0.2) newZoom = 12;
+    else if (maxDiff < 0.5) newZoom = 11;
+    else if (maxDiff < 1) newZoom = 10;
+    else newZoom = 9;
+
+    const targetZoom = newZoom + 0.5;
+    setMapZoom(targetZoom);
+
+    if (map) {
+      map.panTo(newCenter);
+      map.setZoom(targetZoom);
+    }
+
+    setImageryData({
+      image: simulatedHeatmap,
+      bounding_box: simulatedBoundingBox as [number, number, number, number],
+      image_date: new Date().toISOString(),
+    });
+
+    const timeout = window.setTimeout(() => setIsUpdatingFromProps(false), 200);
+    return () => window.clearTimeout(timeout);
+  }, [simulatedBoundingBox, simulatedHeatmap, simulationLoaded, map])
+
+  const handleMapIdle = useCallback(() => {
+    if (!map || isUpdatingFromProps) return;
+
+    const center = map.getCenter();
+    if (!center) return;
+    const zoom = map.getZoom();
+    if (zoom === undefined) return;
+
+    const newCenter = { lat: center.lat(), lng: center.lng() };
+    const prev = lastSyncRef.current;
+
+    const centerChanged =
+      !prev ||
+      Math.abs(prev.center.lat - newCenter.lat) > 0.00001 ||
+      Math.abs(prev.center.lng - newCenter.lng) > 0.00001;
+    const zoomChanged = !prev || prev.zoom !== zoom;
+
+    if (centerChanged) {
+      onMapCenterChange?.(newCenter);
+      setMapCenter(newCenter);
+    }
+    if (zoomChanged) {
+      onMapZoomChange?.(zoom);
+      setMapZoom(zoom);
+    }
+
+    if (centerChanged || zoomChanged) {
+      lastSyncRef.current = { center: newCenter, zoom };
+    }
+  }, [map, isUpdatingFromProps, onMapCenterChange, onMapZoomChange]);
 
   // Fetch imagery when city, date, or type changes
   useEffect(() => {
@@ -563,8 +626,7 @@ const MapPanel = ({
               onClick={handleMapClick}
               onLoad={(mapInstance) => setMap(mapInstance)}
               onUnmount={() => setMap(null)}
-              onCenterChanged={handleCenterChanged}
-              onZoomChanged={handleZoomChanged}
+              onIdle={handleMapIdle}
               options={{
                 streetViewControl: false,
                 mapTypeControl: true,
