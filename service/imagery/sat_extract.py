@@ -181,18 +181,21 @@ def get_heat_map(date, city, session_id: Optional[str] = None):
         print("No items found")
         return None, None, None
 
+    best_image_bytes, best_asset_date, best_bbox = None, None, None
+    min_missing = float('inf')
+
     for item in items:
         thermal_dn, profile, asset = load_band(item, "lwir11", bbox, apply_scale=False)
 
         if thermal_dn is None:
             continue
 
-        if np.isnan(thermal_dn).any():
-            continue
-
         thermal_c = convert_to_celsius(asset, thermal_dn)
+        missing_pixels = int(np.isnan(thermal_c).sum())
 
-        if np.isnan(thermal_c).any():
+        if missing_pixels < min_missing:
+            min_missing = missing_pixels
+        else:
             continue
 
         asset_date = item.properties["datetime"].split("T")[0]
@@ -216,15 +219,22 @@ def get_heat_map(date, city, session_id: Optional[str] = None):
 
         os.remove(output_path)
 
-        return image_bytes, asset_date, bbox
+        best_image_bytes = image_bytes
+        best_asset_date = asset_date
+        best_bbox = bbox
 
-    print("No valid thermal items without masked pixels were found.")
-    return None, None, None
+        if missing_pixels == 0:
+            return image_bytes, asset_date, bbox
+
+    return best_image_bytes, best_asset_date, best_bbox
 
 
 def get_ndvi_map(date, city, session_id: Optional[str] = None):
     bbox = geocode_city(city)
     items = search_landsat_items(date, bbox)
+
+    best_image_bytes, best_asset_date, best_bbox = None, None, None
+    min_missing = float('inf')
 
     if len(items) == 0:
         print("No items found")
@@ -241,7 +251,9 @@ def get_ndvi_map(date, city, session_id: Optional[str] = None):
         if red is None or nir is None:
             continue
 
-        if np.isnan(red).any() or np.isnan(nir).any():
+        missing_pixels = int(np.isnan(red).sum() + np.isnan(nir).sum())
+
+        if missing_pixels > 0 and missing_pixels >= min_missing:
             continue
 
         ndvi_denominator = nir + red
@@ -249,10 +261,13 @@ def get_ndvi_map(date, city, session_id: Optional[str] = None):
         ndvi = np.empty_like(nir, dtype=float)
         ndvi[:] = np.nan
         ndvi[~mask] = (nir[~mask] - red[~mask]) / ndvi_denominator[~mask]
-        ndvi = np.clip(ndvi, -1.0, 1.0)
 
-        if np.isnan(ndvi).any():
+        missing_pixels = int(np.isnan(ndvi).sum())
+
+        if missing_pixels >= min_missing:
             continue
+
+        min_missing = missing_pixels
 
         asset_date = item.properties["datetime"].split("T")[0]
 
@@ -261,7 +276,6 @@ def get_ndvi_map(date, city, session_id: Optional[str] = None):
         fig, ax = plt.subplots(figsize=(10, 8))
         ax.imshow(ndvi, cmap="RdYlGn", vmin=-1, vmax=1)
         ax.axis("off")
-
         output_path = f"ndvi_map_{city}_{asset_date}.png"
         fig.savefig(
             output_path,
@@ -275,7 +289,11 @@ def get_ndvi_map(date, city, session_id: Optional[str] = None):
 
         os.remove(output_path)
 
-        return image_bytes, asset_date, bbox
+        best_image_bytes = image_bytes
+        best_asset_date = asset_date
+        best_bbox = bbox
 
-    print("No valid NDVI items were found.")
-    return None, None, None
+        if missing_pixels == 0:
+            return image_bytes, asset_date, bbox
+
+    return best_image_bytes, best_asset_date, best_bbox

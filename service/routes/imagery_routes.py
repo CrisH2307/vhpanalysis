@@ -5,6 +5,7 @@ from flask import Blueprint, jsonify, request, session
 
 from ..imagery import sat_extract
 from service.routes.simulate_routes import simulate_bp, weakspots_bp
+import time
 
 
 imagery_bp = Blueprint("imagery", __name__, url_prefix="/imagery")

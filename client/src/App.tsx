@@ -36,6 +36,8 @@ const App = () => {
   const [score, setScore] = useState<number>(0);
   const [explanation, setExplanation] = useState<string>('');
 
+  const [date, setDate] = useState<string>('2022-01-01');
+
   // Log sticker arrays whenever they change
   useEffect(() => {
     if (stickerLats.length > 0) {
@@ -71,15 +73,14 @@ const App = () => {
     setExplanation('');
     setCntMapsLoaded(0);
     setSelectedCity(city);
+    setSelectedDate(date)
     console.log('City changed to:', city);
+    console.log('Date changed to:', date);
   };
 
   const handleDateChange = (date: string) => {
-    setScore(0);
-    setExplanation('');
-    setCntMapsLoaded(0);
-    setSelectedDate(date);
     console.log('Date changed to:', date);
+    setDate(date);
   };
 
   const handleSetPlacingMode = (mode: PlacingMode) => {
@@ -219,7 +220,7 @@ const App = () => {
     <div className="flex min-h-screen flex-col bg-slate-800">
       <LayoutHeader
         city={selectedCity}
-        date={selectedDate}
+        date={date}
         onCitySubmit={handleCitySubmit}
         onDateChange={handleDateChange}
       />
@@ -237,7 +238,7 @@ const App = () => {
               <div className="m-2 flex items-center justify-between text-xs uppercase text-slate-400">
                 <span>Normalized Difference Vegetation Index</span>
               </div>
-              <div className="flex flex-1 text-sm gap-3 text-slate-400 px-2 max-h-7">
+              <div className="flex flex-1 text-sm gap-3 text-slate-400 px-2 max-h-7 justify-between">
                 <div className='flex items-center gap-2'>
                   <div style={{width: '15px', height: '15px', backgroundColor: '#3b6741'}}></div>
                   <span>Vegetation</span>
